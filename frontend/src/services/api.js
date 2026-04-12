@@ -6,7 +6,9 @@ const api = axios.create({ baseURL: API_BASE_URL });
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) { config.headers.Authorization = `Bearer ${token}`; }
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
@@ -26,6 +28,11 @@ export const assignmentsAPI = {
   assignShift: (shiftId, hoursVolunteered = null) => api.post('/assignments', { shift_id: shiftId, hours_volunteered: hoursVolunteered }),
   cancelAssignment: (id) => api.delete(`/assignments/${id}`),
   getUserAssignments: () => api.get('/assignments'),
+};
+
+export const usersAPI = {
+  getUsers: () => api.get('/auth/users'),
+  updateUserRole: (id, role) => api.put(`/auth/users/${id}/role`, { role }),
 };
 
 export default api;
