@@ -50,13 +50,20 @@ const getShifts = async (req, res) => {
 
 // Create shift (admin only)
 const createShift = async (req, res) => {
-  const { location_id, start_time, end_time, required_count } = req.body;
+  const { title, start_time, end_time, required_count } = req.body;
 
-  if (!location_id || !start_time || !end_time) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  if (!title || !start_time || !end_time) {
+    return res.status(400).json({ error: 'Missing required fields: title, start_time, end_time' });
   }
 
   try {
+    // Create a location entry using the title as location name
+    const locationResult = await pool.query(
+      'INSERT INTO locations (name) VALUES ($1) RETURNING id',
+      [title]
+    );
+    const location_id = locationResult.rows[0].id;
+
     const result = await pool.query(
       'INSERT INTO shifts (location_id, start_time, end_time, required_count, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [location_id, start_time, end_time, required_count || 1, req.user.id]
