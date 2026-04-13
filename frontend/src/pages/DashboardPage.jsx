@@ -18,6 +18,74 @@ function LeilaLogo() {
   );
 }
 
+function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
+  if (!shift) return null;
+  const fmt = (dt) => new Date(dt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+  const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
+  const isAssigned = !!myAssignment;
+  const covered = shift.assigned_count >= 1;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-xl font-bold text-gray-900">{shift.location_name}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+
+        <div className="space-y-2 mb-5">
+          <div className="flex items-center gap-2 text-gray-600">
+            <span className="text-base">📅</span>
+            <span className="text-sm capitalize">{fmtDate(shift.start_time)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-gray-600">
+            <span className="text-base">🕐</span>
+            <span className="text-sm">{fmt(shift.start_time)} — {fmt(shift.end_time)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-base">👥</span>
+            <span className={`text-sm font-semibold ${covered ? 'text-green-700' : 'text-red-600'}`}>
+              {shift.assigned_count} / {shift.required_count} volontari
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+              {covered ? 'Coperto' : 'Non coperto'}
+            </span>
+          </div>
+        </div>
+
+        {isAssigned ? (
+          <div className="space-y-2">
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-center text-indigo-700 text-sm font-medium">
+              ✓ Sei registrato a questo turno
+            </div>
+            <button
+              onClick={() => { onCancel(myAssignment.id); onClose(); }}
+              className="w-full bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors"
+            >
+              Annulla partecipazione
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => { onAssign(shift.id); onClose(); }}
+            className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+          >
+            + Partecipa a questo turno
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
 const DAYS_IT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
 
@@ -29,6 +97,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('calendario');
+  const [selectedShift, setSelectedShift] = useState(null);
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -51,14 +120,18 @@ export default function DashboardPage() {
     } catch (err) {
       setError('Errore nel caricamento');
       console.error(err);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAssign = async (shiftId) => {
     try {
       await assignmentsAPI.assignShift(shiftId);
       loadShifts();
-    } catch (err) { alert(err.response?.data?.error || 'Errore nella prenotazione'); }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore nella prenotazione');
+    }
   };
 
   const handleCancel = async (assignmentId) => {
@@ -66,7 +139,9 @@ export default function DashboardPage() {
     try {
       await assignmentsAPI.cancelAssignment(assignmentId);
       loadShifts();
-    } catch (err) { alert(err.response?.data?.error || 'Errore'); }
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore');
+    }
   };
 
   const handleLogout = () => {
@@ -103,6 +178,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <ShiftModal
+        shift={selectedShift}
+        userAssignments={userAssignments}
+        onClose={() => setSelectedShift(null)}
+        onAssign={handleAssign}
+        onCancel={handleCancel}
+      />
+
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <LeilaLogo />
@@ -156,13 +239,11 @@ export default function DashboardPage() {
                   <h2 className="text-xl font-bold text-gray-800">{MONTHS_IT[calMonth.month]} {calMonth.year}</h2>
                   <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl font-bold">›</button>
                 </div>
-
                 <div className="grid grid-cols-7 mb-1">
                   {DAYS_IT.map(d => (
                     <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
                   ))}
                 </div>
-
                 <div className="grid grid-cols-7 gap-1">
                   {cells.map((day, idx) => {
                     const dayShifts = day ? (shiftsByDay[day] || []) : [];
@@ -177,9 +258,12 @@ export default function DashboardPage() {
                                 const covered = shift.assigned_count >= 1;
                                 const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
                                 return (
-                                  <div key={shift.id}
+                                  <div
+                                    key={shift.id}
+                                    onClick={() => setSelectedShift(shift)}
                                     title={shift.location_name + ' ' + fmt(shift.start_time) + '–' + fmt(shift.end_time) + ' | ' + shift.assigned_count + '/' + shift.required_count + ' volontari'}
-                                    className={`text-xs px-1 py-0.5 rounded font-medium truncate cursor-default ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} ${isMyShift ? 'ring-1 ring-indigo-400' : ''}`}>
+                                    className={`text-xs px-1 py-0.5 rounded font-medium truncate cursor-pointer hover:opacity-75 transition-opacity ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} ${isMyShift ? 'ring-1 ring-indigo-400' : ''}`}
+                                  >
                                     {shift.location_name}
                                   </div>
                                 );
@@ -191,11 +275,11 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
-
                 <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Coperto (≥1 volontario)</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Non coperto</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-100 ring-1 ring-indigo-400"></div><span className="text-xs text-gray-500">Mio turno</span></div>
+                  <div className="flex items-center gap-2 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
             )}
@@ -224,7 +308,8 @@ export default function DashboardPage() {
                               <p className="text-gray-500 text-sm">{fmtDate(shift.start_time)}</p>
                               <p className="text-gray-500 text-sm">{fmt(shift.start_time)} — {fmt(shift.end_time)}</p>
                             </div>
-                            <button onClick={() => isAssigned ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
+                            <button
+                              onClick={() => isAssigned ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
                               className={`px-4 py-2 rounded-lg text-sm font-semibold ${isAssigned ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
                               {isAssigned ? '✓ Prenotato' : '+ Partecipa'}
                             </button>
@@ -234,7 +319,6 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
-
                 <div className="bg-white rounded-xl shadow-sm p-6">
                   <h2 className="text-lg font-bold mb-4 text-gray-800">I miei turni</h2>
                   {userAssignments.filter(a => a.status === 'assigned').length === 0 ? (
