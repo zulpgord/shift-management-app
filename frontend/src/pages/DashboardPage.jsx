@@ -25,6 +25,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
   const isAssigned = !!myAssignment;
   const covered = shift.assigned_count >= 1;
+  const assignedUsers = shift.assigned_users || [];
 
   return (
     <div
@@ -60,6 +61,22 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
             </span>
           </div>
         </div>
+
+        {assignedUsers.length > 0 && (
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Iscritti</p>
+            <div className="space-y-1">
+              {assignedUsers.map((name, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-700">
+                  <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                  {name}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {isAssigned ? (
           <div className="space-y-2">
@@ -249,7 +266,7 @@ export default function DashboardPage() {
                     const dayShifts = day ? (shiftsByDay[day] || []) : [];
                     const isToday = day && new Date().getDate() === day && new Date().getMonth() === calMonth.month && new Date().getFullYear() === calMonth.year;
                     return (
-                      <div key={idx} className={`min-h-[80px] rounded-lg p-1 ${day ? 'border border-gray-100 bg-gray-50' : ''} ${isToday ? 'border-indigo-300 bg-indigo-50' : ''}`}>
+                      <div key={idx} className={`min-h-[90px] rounded-lg p-1 ${day ? 'border border-gray-100 bg-gray-50' : ''} ${isToday ? 'border-indigo-300 bg-indigo-50' : ''}`}>
                         {day && (
                           <>
                             <p className={`text-xs font-semibold mb-1 px-0.5 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
@@ -257,14 +274,21 @@ export default function DashboardPage() {
                               {dayShifts.map(shift => {
                                 const covered = shift.assigned_count >= 1;
                                 const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
+                                const assignedUsers = shift.assigned_users || [];
                                 return (
                                   <div
                                     key={shift.id}
                                     onClick={() => setSelectedShift(shift)}
-                                    title={shift.location_name + ' ' + fmt(shift.start_time) + '–' + fmt(shift.end_time) + ' | ' + shift.assigned_count + '/' + shift.required_count + ' volontari'}
-                                    className={`text-xs px-1 py-0.5 rounded font-medium truncate cursor-pointer hover:opacity-75 transition-opacity ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} ${isMyShift ? 'ring-1 ring-indigo-400' : ''}`}
+                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} ${isMyShift ? 'ring-1 ring-indigo-400' : ''}`}
                                   >
-                                    {shift.location_name}
+                                    <div className="truncate font-semibold">{shift.location_name}</div>
+                                    <div className="text-xs opacity-75">{fmt(shift.start_time)}–{fmt(shift.end_time)}</div>
+                                    {assignedUsers.length > 0 && (
+                                      <div className="truncate opacity-75 mt-0.5">
+                                        {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
+                                        {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -296,23 +320,29 @@ export default function DashboardPage() {
                         const isAssigned = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
                         const covered = shift.assigned_count >= 1;
                         const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
+                        const assignedUsers = shift.assigned_users || [];
                         return (
-                          <div key={shift.id} className={`border rounded-xl p-4 flex justify-between items-center ${covered ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-gray-900">{shift.location_name}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                                  {shift.assigned_count}/{shift.required_count} volontari
-                                </span>
+                          <div key={shift.id} className={`border rounded-xl p-4 ${covered ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-semibold text-gray-900">{shift.location_name}</span>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                                    {shift.assigned_count}/{shift.required_count} volontari
+                                  </span>
+                                </div>
+                                <p className="text-gray-500 text-sm">{fmtDate(shift.start_time)}</p>
+                                <p className="text-gray-500 text-sm">{fmt(shift.start_time)} — {fmt(shift.end_time)}</p>
+                                {assignedUsers.length > 0 && (
+                                  <p className="text-gray-400 text-xs mt-1">👤 {assignedUsers.join(', ')}</p>
+                                )}
                               </div>
-                              <p className="text-gray-500 text-sm">{fmtDate(shift.start_time)}</p>
-                              <p className="text-gray-500 text-sm">{fmt(shift.start_time)} — {fmt(shift.end_time)}</p>
+                              <button
+                                onClick={() => isAssigned ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
+                                className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${isAssigned ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
+                                {isAssigned ? '✓ Prenotato' : '+ Partecipa'}
+                              </button>
                             </div>
-                            <button
-                              onClick={() => isAssigned ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
-                              className={`px-4 py-2 rounded-lg text-sm font-semibold ${isAssigned ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                              {isAssigned ? '✓ Prenotato' : '+ Partecipa'}
-                            </button>
                           </div>
                         );
                       })}
@@ -334,7 +364,7 @@ export default function DashboardPage() {
                           </div>
                           <button onClick={() => handleCancel(a.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
                             Annulla
-                          </button>
+          </button>
                         </div>
                       ))}
                     </div>
