@@ -6,36 +6,30 @@ const getShifts = async (req, res) => {
   let query = 'SELECT s.*, l.name as location_name FROM shifts s JOIN locations l ON s.location_id = l.id WHERE 1=1';
   const params = [];
 
-  if (location_id) {
-    params.push(location_id);
-    query += ` AND s.location_id = $${params.length}`;
-  }
-  if (start_date) {
-    params.push(start_date);
-    query += ` AND s.start_time >= $${params.length}`;
-  }
-  if (end_date) {
-    params.push(end_date);
-    query += ` AND s.end_time <= $${params.length}`;
-  }
+  if (location_id) { params.push(location_id); query += ` AND s.location_id = $${params.length}`; }
+  if (start_date) { params.push(start_date); query += ` AND s.start_time >= $${params.length}`; }
+  if (end_date) { params.push(end_date); query += ` AND s.end_time <= $${params.length}`; }
   query += ' ORDER BY s.start_time ASC';
 
   try {
     const result = await pool.query(query, params);
-    const shiftsWithCounts = await Promise.all(
+    const shiftsWithDetails = await Promise.all(
       result.rows.map(async (shift) => {
-        const countResult = await pool.query(
-          'SELECT COUNT(*) as count FROM assignments WHERE shift_id = $1 AND status = $2',
+        const assignedResult = await pool.query(
+          'SELECT u.name FROM assignments a JOIN users u ON a.user_id = u.id WHERE a.shift_id = $1 AND a.status = $2',
           [shift.id, 'assigned']
         );
+        const assigned_count = assignedResult.rows.length;
+        const assigned_users = assignedResult.rows.map(r => r.name);
         return {
           ...shift,
-          assigned_count: parseInt(countResult.rows[0].count),
-          coverage_status: parseInt(countResult.rows[0].count) >= shift.required_count ? 'covered' : 'uncovered',
+          assigned_count,
+          assigned_users,
+          coverage_status: assigned_count >= shift.required_count ? 'covered' : 'uncovered',
         };
       })
     );
-    res.json(shiftsWithCounts);
+    res.json(shiftsWithDetails);
   } catch (err) {
     console.error('Get shifts error:', err);
     res.status(500).json({ error: 'Failed to fetch shifts' });
