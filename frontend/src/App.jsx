@@ -5,9 +5,9 @@ import AdminPage from './pages/AdminPage';
 import './App.css';
 
 function App() {
-  const token = localStorage.getItem('token');
-
+  
   const PrivateRoute = ({ children }) => {
+      const token = localStorage.getItem('token');
     return token ? children : <Navigate to="/auth" />;
   };
 
