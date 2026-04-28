@@ -1,336 +1,354 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { shiftsAPI, usersAPI } from '../services/api';
+import { shiftsAPI, locationsAPI, adminAPI } from '../services/api';
 
-const LOCATIONS = ['Alveare Urbano', 'Leila', 'Magma', 'Scamamù', 'Ribalta'];
+function ShiftsSection({ locations }) {
+  const [showForm, setShowForm] = useState(false);
+  const [repeat, setRepeat] = useState(false);
+  const [weeks, setWeeks] = useState(4);
+  const [formData, setFormData] = useState({ location_id: '', start_time: '', end_time: '', required_count: 1 });
 
-function LeilaLogo() {
+  useEffect(() => {
+    if (locations.length > 0 && !formData.location_id) {
+      setFormData((p) => ({ ...p, location_id: String(locations[0].id) }));
+    }
+  }, [locations]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((p) => ({ ...p, [name]: name === 'required_count' ? parseInt(value) : value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const targets = repeat
+        ? Array.from({ length: weeks }, (_, i) => {
+            const offset = i * 7 * 24 * 60 * 60 * 1000;
+            return {
+              ...formData,
+              start_time: new Date(new Date(formData.start_time).getTime() + offset).toISOString(),
+              end_time: new Date(new Date(formData.end_time).getTime() + offset).toISOString(),
+            };
+          })
+        : [formData];
+      await Promise.all(targets.map((t) => shiftsAPI.createShift(t)));
+      alert(`✅ ${targets.length} turno/i creato/i!`);
+      setShowForm(false);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore nella creazione del turno');
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
-        <span style={{ fontFamily: 'Georgia, serif', fontStyle: 'italic', fontWeight: 900, fontSize: '2.4rem', color: '#111', letterSpacing: '-1px' }}>
-          Leila
-        </span>
-        <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#e00', display: 'inline-block', marginTop: '4px' }} />
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">📅 Turni</h2>
+        <button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
+          {showForm ? '❌ Annulla' : '➕ Nuovo Turno'}
+        </button>
       </div>
-      <span style={{ fontFamily: 'Arial, sans-serif', fontSize: '0.7rem', color: '#444', letterSpacing: '0.5px', marginTop: '-2px' }}>
-        la rete degli oggetti
-      </span>
+      {showForm && (
+        <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-gray-50 rounded">
+          <div>
+            <label className="block text-sm font-semibold mb-1">Location</label>
+            <select name="location_id" value={formData.location_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
+          </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-semibold mb-1">Inizio</label>
+              <input type="datetime-local" name="start_time" value={formData.start_time} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Fine</label>
+              <input type="datetime-local" name="end_time" value={formData.end_time} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Volontari richiesti</label>
+            <input type="number" name="required_count" min="1" value={formData.required_count} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div className="flex items-center gap-3">
+            <input type="checkbox" id="repeat" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} className="w-4 h-4" />
+            <label htmlFor="repeat" className="text-sm font-semibold">Turno ripetitivo</label>
+          </div>
+          {repeat && (
+            <div>
+              <label className="block text-sm font-semibold mb-1">Ripeti per quante settimane?</label>
+              <input type="number" min="1" max="52" value={weeks} onChange={(e) => setWeeks(parseInt(e.target.value))} className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <p className="text-xs text-gray-500 mt-1">Verranno creati {weeks} turni, uno a settimana.</p>
+            </div>
+          )}
+          <button type="submit" className="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700">
+            Crea Turno{repeat ? ` (×${weeks})` : ''}
+          </button>
+        </form>
+      )}
+      {!showForm && <p className="text-gray-400 text-sm">Crea nuovi turni singoli o ripetitivi.</p>}
     </div>
   );
 }
 
-const emptyForm = { location: LOCATIONS[0], date: '', start_hour: '09:00', duration_hours: 2, required_count: 1, repeat: false, repeat_weeks: 4 };
+function UsersSection() {
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await adminAPI.getUsers();
+      setUsers(res.data);
+    } catch { alert('Errore nel caricamento utenti'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleRole = async (user) => {
+    const newRole = user.role === 'admin' ? 'volunteer' : 'admin';
+    if (!confirm(`Cambia il ruolo di ${user.name} a "${newRole}"?`)) return;
+    try {
+      await adminAPI.updateUserRole(user.id, newRole);
+      setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, role: newRole } : u));
+    } catch (err) { alert(err.response?.data?.error || 'Errore nel cambio ruolo'); }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-xl font-bold mb-4">👥 Utenti registrati</h2>
+      {loading ? <p className="text-gray-400">Caricamento...</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-2 pr-4">Nome</th>
+                <th className="pb-2 pr-4">Email</th>
+                <th className="pb-2 pr-4">Ruolo</th>
+                <th className="pb-2">Azione</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id} className="border-b hover:bg-gray-50">
+                  <td className="py-2 pr-4 font-medium">{u.name}</td>
+                  <td className="py-2 pr-4 text-gray-600">{u.email}</td>
+                  <td className="py-2 pr-4">
+                    <span className={`px-2 py-0.5 rounded text-xs font-semibold ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-100 text-green-700'}`}>
+                      {u.role === 'admin' ? 'Admin' : 'Volontario'}
+                    </span>
+                  </td>
+                  <td className="py-2">
+                    {u.id !== currentUser.id
+                      ? <button onClick={() => toggleRole(u)} className="text-xs text-indigo-600 hover:underline">{u.role === 'admin' ? '→ Volontario' : '→ Admin'}</button>
+                      : <span className="text-xs text-gray-400">Tu</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatsSection() {
+  const [stats, setStats] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(String(currentYear));
+  const [month, setMonth] = useState('');
+  const MONTHS = [
+    { value: '1', label: 'Gennaio' }, { value: '2', label: 'Febbraio' },
+    { value: '3', label: 'Marzo' }, { value: '4', label: 'Aprile' },
+    { value: '5', label: 'Maggio' }, { value: '6', label: 'Giugno' },
+    { value: '7', label: 'Luglio' }, { value: '8', label: 'Agosto' },
+    { value: '9', label: 'Settembre' }, { value: '10', label: 'Ottobre' },
+    { value: '11', label: 'Novembre' }, { value: '12', label: 'Dicembre' },
+  ];
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (year) params.year = year;
+      if (month) params.month = month;
+      const res = await adminAPI.getStats(params);
+      setStats(res.data);
+    } catch { alert('Errore nel caricamento statistiche'); }
+    finally { setLoading(false); }
+  }, [year, month]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-xl font-bold mb-4">📊 Statistiche prenotazioni</h2>
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Anno</label>
+          <select value={year} onChange={(e) => setYear(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Tutti</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Mese</label>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Tutti</option>
+            {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+      {loading ? <p className="text-gray-400">Caricamento...</p> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-2 pr-4">#</th>
+                <th className="pb-2 pr-4">Volontario</th>
+                <th className="pb-2 pr-4 text-center">Prenotazioni</th>
+                <th className="pb-2 pr-4 text-center">Attive</th>
+                <th className="pb-2 pr-4 text-center">Annullate</th>
+                <th className="pb-2 text-center">Ore totali</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((s, i) => (
+                <tr key={s.id} className={`border-b hover:bg-gray-50 ${s.total_bookings === 0 ? 'text-gray-400' : ''}`}>
+                  <td className="py-2 pr-4 text-gray-400">{i + 1}</td>
+                  <td className="py-2 pr-4"><div className="font-medium">{s.name}</div><div className="text-xs text-gray-400">{s.email}</div></td>
+                  <td className="py-2 pr-4 text-center font-semibold">{s.total_bookings}</td>
+                  <td className="py-2 pr-4 text-center"><span className="text-green-600 font-medium">{s.active_bookings}</span></td>
+                  <td className="py-2 pr-4 text-center"><span className="text-red-500">{s.cancelled_bookings}</span></td>
+                  <td className="py-2 text-center text-indigo-600 font-medium">{s.total_hours}h</td>
+                </tr>
+              ))}
+              {stats.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato disponibile</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LocationsSection() {
+  const [locations, setLocations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({ name: '', address: '' });
+
+  const load = useCallback(async () => {
+    try { const res = await locationsAPI.getLocations(); setLocations(res.data); }
+    catch { alert('Errore nel caricamento locations'); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const startEdit = (loc) => { setEditingId(loc.id); setFormData({ name: loc.name, address: loc.address || '' }); setShowForm(true); };
+  const startNew = () => { setEditingId(null); setFormData({ name: '', address: '' }); setShowForm(true); };
+  const cancel = () => { setShowForm(false); setEditingId(null); setFormData({ name: '', address: '' }); };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingId) { await locationsAPI.updateLocation(editingId, formData); }
+      else { await locationsAPI.createLocation(formData); }
+      await load(); cancel();
+    } catch (err) { alert(err.response?.data?.error || 'Errore nel salvataggio'); }
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">📍 Locations</h2>
+        {!showForm && <button onClick={startNew} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">➕ Aggiungi Location</button>}
+      </div>
+      {showForm && (
+        <form onSubmit={handleSubmit} className="space-y-3 mb-6 p-4 bg-gray-50 rounded">
+          <h3 className="font-semibold text-sm">{editingId ? 'Modifica Location' : 'Nuova Location'}</h3>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Nome *</label>
+            <input type="text" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} required placeholder="es. Sede Centrale" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Indirizzo</label>
+            <input type="text" value={formData.address} onChange={(e) => setFormData((p) => ({ ...p, address: e.target.value }))} placeholder="es. Via Roma 1, Milano" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 text-sm">{editingId ? 'Salva modifiche' : 'Aggiungi'}</button>
+            <button type="button" onClick={cancel} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm">Annulla</button>
+          </div>
+        </form>
+      )}
+      {loading ? <p className="text-gray-400">Caricamento...</p> : locations.length === 0
+        ? <p className="text-gray-400 text-sm">Nessuna location ancora. Aggiungine una!</p>
+        : <ul className="divide-y">{locations.map((loc) => (
+            <li key={loc.id} className="py-3 flex justify-between items-start">
+              <div><div className="font-medium">{loc.name}</div>{loc.address && <div className="text-sm text-gray-500">{loc.address}</div>}</div>
+              <button onClick={() => startEdit(loc)} className="text-sm text-indigo-600 hover:underline ml-4 shrink-0">✏️ Modifica</button>
+            </li>
+          ))}</ul>
+      }
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const [activeTab, setActiveTab] = useState('turni');
-  const [shifts, setShifts] = useState([]);
-  const [users, setUsers] = useState([]);
-  const [loadingShifts, setLoadingShifts] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState(emptyForm);
-  const [submitting, setSubmitting] = useState(false);
+  const [tab, setTab] = useState('turni');
+  const [locations, setLocations] = useState([]);
+
+  useEffect(() => { locationsAPI.getLocations().then((res) => setLocations(res.data)).catch(() => {}); }, []);
 
   if (user.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-4">Accesso negato</h1>
-          <button onClick={() => navigate('/dashboard')} className="bg-indigo-600 text-white px-4 py-2 rounded">
-            Torna alla Dashboard
-          </button>
+          <h1 className="text-2xl font-bold text-red-600 mb-4">❌ Accesso negato</h1>
+          <button onClick={() => navigate('/dashboard')} className="bg-indigo-600 text-white px-4 py-2 rounded">Torna alla Dashboard</button>
         </div>
       </div>
     );
   }
 
-  useEffect(() => { loadShifts(); }, []);
-  useEffect(() => { if (activeTab === 'utenti') loadUsers(); }, [activeTab]);
-
-  const loadShifts = async () => {
-    try {
-      setLoadingShifts(true);
-      const res = await shiftsAPI.getShifts();
-      setShifts(res.data);
-    } catch (err) { console.error('Failed to load shifts', err); }
-    finally { setLoadingShifts(false); }
-  };
-
-  const loadUsers = async () => {
-    try {
-      setLoadingUsers(true);
-      const res = await usersAPI.getUsers();
-      setUsers(res.data);
-    } catch (err) { console.error('Failed to load users', err); }
-    finally { setLoadingUsers(false); }
-  };
-
-  const handleRoleToggle = async (u) => {
-    const newRole = u.role === 'admin' ? 'volunteer' : 'admin';
-    if (u.id === user.id && newRole === 'volunteer') {
-      alert('Non puoi rimuovere il tuo ruolo di admin');
-      return;
-    }
-    try {
-      await usersAPI.updateUserRole(u.id, newRole);
-      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, role: newRole } : x));
-    } catch (err) {
-      alert(err.response?.data?.error || 'Errore nel cambio ruolo');
-    }
-  };
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'required_count' || name === 'duration_hours' || name === 'repeat_weeks') ? parseInt(value) : value,
-    }));
-  };
-
-  const openCreate = () => { setEditingId(null); setFormData(emptyForm); setShowForm(true); };
-
-  const openEdit = (shift) => {
-    const start = new Date(shift.start_time);
-    const end = new Date(shift.end_time);
-    const pad = (n) => String(n).padStart(2, '0');
-    setFormData({
-      location: shift.location_name || LOCATIONS[0],
-      date: `${start.getFullYear()}-${pad(start.getMonth()+1)}-${pad(start.getDate())}`,
-      start_hour: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
-      duration_hours: Math.round((end - start) / 3600000) || 2,
-      required_count: shift.required_count,
-      repeat: false, repeat_weeks: 4,
-    });
-    setEditingId(shift.id);
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleCancel = () => { setShowForm(false); setEditingId(null); setFormData(emptyForm); };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const startDateTime = new Date(formData.date + 'T' + formData.start_hour + ':00');
-    const endDateTime = new Date(startDateTime.getTime() + formData.duration_hours * 3600000);
-    const payload = { title: formData.location, start_time: startDateTime.toISOString(), end_time: endDateTime.toISOString(), required_count: formData.required_count };
-    try {
-      if (editingId) {
-        await shiftsAPI.updateShift(editingId, payload);
-        alert('Turno aggiornato!');
-      } else if (formData.repeat && formData.repeat_weeks > 1) {
-        for (let i = 0; i < formData.repeat_weeks; i++) {
-          const start = new Date(startDateTime.getTime() + i * 7 * 24 * 3600000);
-          const end = new Date(endDateTime.getTime() + i * 7 * 24 * 3600000);
-          await shiftsAPI.createShift({ ...payload, start_time: start.toISOString(), end_time: end.toISOString() });
-        }
-        alert(`${formData.repeat_weeks} turni creati!`);
-      } else {
-        await shiftsAPI.createShift(payload);
-        alert('Turno creato!');
-      }
-      handleCancel();
-      loadShifts();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Errore nel salvataggio del turno');
-    } finally { setSubmitting(false); }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Eliminare questo turno?')) return;
-    try {
-      await shiftsAPI.deleteShift(id);
-      setShifts(prev => prev.filter(s => s.id !== id));
-    } catch (err) { alert(err.response?.data?.error || 'Errore nella cancellazione'); }
-  };
-
-  const endTime = formData.date && formData.start_hour ? (() => {
-    const end = new Date(formData.date + 'T' + formData.start_hour + ':00');
-    end.setHours(end.getHours() + formData.duration_hours);
-    return end.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-  })() : null;
-
-  const tabBtn = (id, label) => (
-    <button onClick={() => setActiveTab(id)}
-      className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${activeTab === id ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-      {label}
-    </button>
-  );
+  const tabs = [
+    { id: 'turni', label: '📅 Turni' },
+    { id: 'utenti', label: '👥 Utenti' },
+    { id: 'statistiche', label: '📊 Statistiche' },
+    { id: 'locations', label: '📍 Locations' },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-        <LeilaLogo />
-        <div className="flex gap-3">
-          {activeTab === 'turni' && (
-            <button onClick={openCreate} className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 font-medium text-sm">
-              + Nuovo Turno
+      <header className="bg-white shadow">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
+          <h1 className="text-xl font-bold text-indigo-600">👨‍💼 Pannello Admin</h1>
+          <button onClick={() => navigate('/dashboard')} className="text-indigo-600 hover:underline text-sm">← Dashboard</button>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 flex gap-1 border-t overflow-x-auto">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors ${tab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              {t.label}
             </button>
-          )}
-          <button onClick={() => navigate('/dashboard')} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm">
-            ← Dashboard
-          </button>
+          ))}
         </div>
-      </div>
-
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Pannello Admin</h1>
-
-        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
-          {tabBtn('turni', '📅 Turni')}
-          {tabBtn('utenti', '👥 Utenti')}
-        </div>
-
-        {activeTab === 'turni' && (
-          <>
-            {showForm && (
-              <div className="bg-white rounded-xl shadow-md p-6 mb-6 border-l-4 border-indigo-500">
-                <h2 className="text-lg font-semibold mb-4 text-gray-800">
-                  {editingId ? '✏️ Modifica Turno' : '+ Crea Nuovo Turno'}
-                </h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                    <select name="location" value={formData.location} onChange={handleChange}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                      {LOCATIONS.map(loc => <option key={loc} value={loc}>{loc}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
-                      <input type="date" name="date" value={formData.date} onChange={handleChange} required
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Ora inizio</label>
-                      <input type="time" name="start_hour" value={formData.start_hour} onChange={handleChange} required
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Durata</label>
-                      <select name="duration_hours" value={formData.duration_hours} onChange={handleChange}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                        {[1,2,3,4,5,6,7,8].map(h => <option key={h} value={h}>{h} {h === 1 ? 'ora' : 'ore'}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Volontari necessari</label>
-                      <input type="number" name="required_count" value={formData.required_count} onChange={handleChange} min="1" required
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                  </div>
-                  {endTime && (
-                    <p className="text-sm bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg">
-                      Orario turno: <strong>{formData.start_hour}</strong> — <strong>{endTime}</strong>
-                    </p>
-                  )}
-                  {!editingId && (
-                    <div className="border border-gray-200 rounded-lg p-3 bg-gray-50">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="repeat" checked={formData.repeat} onChange={handleChange} className="w-4 h-4 text-indigo-600 rounded" />
-                        <span className="text-sm font-medium text-gray-700">Turno ripetitivo settimanale</span>
-                      </label>
-                      {formData.repeat && (
-                        <div className="mt-3 flex items-center gap-3">
-                          <label className="text-sm text-gray-600">Ripeti per</label>
-                          <input type="number" name="repeat_weeks" value={formData.repeat_weeks} onChange={handleChange} min="2" max="52"
-                            className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                          <span className="text-sm text-gray-600">settimane</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex gap-3 pt-1">
-                    <button type="submit" disabled={submitting}
-                      className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50">
-                      {submitting ? 'Salvataggio...' : editingId ? 'Salva Modifiche' : formData.repeat ? `Crea ${formData.repeat_weeks} Turni` : 'Crea Turno'}
-                    </button>
-                    <button type="button" onClick={handleCancel}
-                      className="px-6 bg-gray-100 text-gray-700 py-2 rounded-lg hover:bg-gray-200">
-                      Annulla
-                    </button>
-                  </div>
-                </form>
-              </div>
-            )}
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-lg font-semibold mb-4 text-gray-800">Turni in Calendario</h2>
-              {loadingShifts ? (
-                <p className="text-gray-400 text-center py-8">Caricamento...</p>
-              ) : shifts.length === 0 ? (
-                <p className="text-gray-400 text-center py-8">Nessun turno presente. Creane uno!</p>
-              ) : (
-                <div className="space-y-3">
-                  {shifts.map(shift => (
-                    <div key={shift.id} className="border border-gray-200 rounded-xl p-4 flex justify-between items-center hover:border-indigo-300 transition-colors">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-900 text-base">{shift.location_name || 'Turno'}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${shift.assigned_count >= shift.required_count ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {shift.assigned_count}/{shift.required_count} volontari
-                          </span>
-                        </div>
-                        <p className="text-gray-500 text-sm">
-                          {new Date(shift.start_time).toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}
-                        </p>
-                        <p className="text-gray-500 text-sm">
-                          {new Date(shift.start_time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })} —{' '}
-                          {new Date(shift.end_time).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => openEdit(shift)} className="bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg hover:bg-indigo-100 text-sm font-medium">Modifica</button>
-                        <button onClick={() => handleDelete(shift.id)} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-100 text-sm font-medium">Elimina</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {activeTab === 'utenti' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-lg font-semibold mb-4 text-gray-800">Gestione Utenti</h2>
-            {loadingUsers ? (
-              <p className="text-gray-400 text-center py-8">Caricamento...</p>
-            ) : users.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">Nessun utente registrato.</p>
-            ) : (
-              <div className="space-y-3">
-                {users.map(u => (
-                  <div key={u.id} className="border border-gray-200 rounded-xl p-4 flex justify-between items-center hover:border-gray-300 transition-colors">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-gray-900">{u.name}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {u.role === 'admin' ? '⭐ Admin' : 'Volontario'}
-                        </span>
-                        {u.id === user.id && (
-                          <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">Tu</span>
-                        )}
-                      </div>
-                      <p className="text-gray-500 text-sm mt-0.5">{u.email}</p>
-                    </div>
-                    <button onClick={() => handleRoleToggle(u)} disabled={u.id === user.id}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${u.id === user.id ? 'opacity-40 cursor-not-allowed bg-gray-100 text-gray-400' : u.role === 'admin' ? 'bg-orange-50 text-orange-600 hover:bg-orange-100' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
-                      {u.role === 'admin' ? 'Rimuovi Admin' : 'Rendi Admin'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      </header>
+      <main className="max-w-5xl mx-auto p-4">
+        {tab === 'turni' && <ShiftsSection locations={locations} />}
+        {tab === 'utenti' && <UsersSection />}
+        {tab === 'statistiche' && <StatsSection />}
+        {tab === 'locations' && <LocationsSection />}
+      </main>
     </div>
   );
 }
