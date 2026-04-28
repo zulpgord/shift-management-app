@@ -1,4 +1,5 @@
 const { pool } = require('../db/database');
+const bcrypt = require('bcrypt');
 
 const getUsers = async (req, res) => {
   try {
@@ -34,6 +35,26 @@ const updateUserRole = async (req, res) => {
   }
 };
 
+const resetUserPassword = async (req, res) => {
+  const { id } = req.params;
+  const { new_password } = req.body;
+  if (!new_password || new_password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  try {
+    const hashed = await bcrypt.hash(new_password, 10);
+    const result = await pool.query(
+      'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name',
+      [hashed, id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ message: 'Password reset successfully', user: result.rows[0] });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
+  }
+};
+
 const getStats = async (req, res) => {
   const { month, year } = req.query;
   let dateFilter = '';
@@ -49,9 +70,7 @@ const getStats = async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-        u.id,
-        u.name,
-        u.email,
+        u.id, u.name, u.email,
         COUNT(a.id)::int AS total_bookings,
         COUNT(CASE WHEN a.status = 'assigned' THEN 1 END)::int AS active_bookings,
         COUNT(CASE WHEN a.status = 'cancelled' THEN 1 END)::int AS cancelled_bookings,
@@ -71,4 +90,4 @@ const getStats = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, updateUserRole, getStats };
+module.exports = { getUsers, updateUserRole, resetUserPassword, getStats };
