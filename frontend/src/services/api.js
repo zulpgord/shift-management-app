@@ -1,8 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://shift-management-app-production.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : 'http://localhost:5000/api';
 
-const api = axios.create({ baseURL: API_BASE_URL });
+const api = axios.create({
+  baseURL: API_BASE_URL,
+});
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -13,26 +17,46 @@ api.interceptors.request.use((config) => {
 });
 
 export const authAPI = {
-  register: (email, password, name) => api.post('/auth/register', { email, password, name }),
-  login: (email, password) => api.post('/auth/login', { email, password }),
+  register: (email, password, name) =>
+    api.post('/auth/register', { email, password, name }),
+  login: (email, password) =>
+    api.post('/auth/login', { email, password }),
 };
 
 export const shiftsAPI = {
-  getShifts: (params = {}) => api.get('/shifts', { params }),
-  createShift: (shiftData) => api.post('/shifts', shiftData),
-  updateShift: (id, shiftData) => api.put(`/shifts/${id}`, shiftData),
-  deleteShift: (id) => api.delete(`/shifts/${id}`),
+  getShifts: (params = {}) =>
+    api.get('/shifts', { params }),
+  createShift: (shiftData) =>
+    api.post('/shifts', shiftData),
+  deleteShift: (id) =>
+    api.delete(`/shifts/${id}`),
 };
 
 export const assignmentsAPI = {
-  assignShift: (shiftId, hoursVolunteered = null) => api.post('/assignments', { shift_id: shiftId, hours_volunteered: hoursVolunteered }),
-  cancelAssignment: (id) => api.delete(`/assignments/${id}`),
-  getUserAssignments: () => api.get('/assignments'),
+  assignShift: (shiftId, hoursVolunteered = null) =>
+    api.post('/assignments', { shift_id: shiftId, hours_volunteered: hoursVolunteered }),
+  cancelAssignment: (id) =>
+    api.delete(`/assignments/${id}`),
+  getUserAssignments: () =>
+    api.get('/assignments'),
 };
 
-export const usersAPI = {
-  getUsers: () => api.get('/auth/users'),
-  updateUserRole: (id, role) => api.put(`/auth/users/${id}/role`, { role }),
+export const locationsAPI = {
+  getLocations: () =>
+    api.get('/locations'),
+  createLocation: (data) =>
+    api.post('/locations', data),
+  updateLocation: (id, data) =>
+    api.put(`/locations/${id}`, data),
+};
+
+export const adminAPI = {
+  getUsers: () =>
+    api.get('/admin/users'),
+  updateUserRole: (id, role) =>
+    api.put(`/admin/users/${id}/role`, { role }),
+  getStats: (params = {}) =>
+    api.get('/admin/stats', { params }),
 };
 
 export default api;
