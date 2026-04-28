@@ -2,36 +2,50 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { shiftsAPI, locationsAPI, adminAPI } from '../services/api';
 
+// ── Crea Turno ────────────────────────────────────────────────────────────────
 function ShiftsSection({ locations }) {
   const [showForm, setShowForm] = useState(false);
   const [repeat, setRepeat] = useState(false);
   const [weeks, setWeeks] = useState(4);
-  const [formData, setFormData] = useState({ location_id: '', start_time: '', end_time: '', required_count: 1 });
+  const [formData, setFormData] = useState({
+    location_id: '',
+    date: '',
+    start_hour: '09:00',
+    duration: 2,
+    required_count: 1,
+  });
 
   useEffect(() => {
-    if (locations.length > 0 && !formData.location_id) {
+    if (locations.length > 0 && !formData.location_id)
       setFormData((p) => ({ ...p, location_id: String(locations[0].id) }));
-    }
   }, [locations]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: name === 'required_count' ? parseInt(value) : value }));
+    setFormData((p) => ({
+      ...p,
+      [name]: (name === 'required_count' || name === 'duration') ? parseFloat(value) : value,
+    }));
+  };
+
+  const buildShift = (offsetDays = 0) => {
+    const base = new Date(`${formData.date}T${formData.start_hour}:00`);
+    base.setDate(base.getDate() + offsetDays * 7);
+    const end = new Date(base.getTime() + formData.duration * 60 * 60 * 1000);
+    return {
+      location_id: formData.location_id,
+      start_time: base.toISOString(),
+      end_time: end.toISOString(),
+      required_count: formData.required_count,
+    };
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const targets = repeat
-        ? Array.from({ length: weeks }, (_, i) => {
-            const offset = i * 7 * 24 * 60 * 60 * 1000;
-            return {
-              ...formData,
-              start_time: new Date(new Date(formData.start_time).getTime() + offset).toISOString(),
-              end_time: new Date(new Date(formData.end_time).getTime() + offset).toISOString(),
-            };
-          })
-        : [formData];
+        ? Array.from({ length: weeks }, (_, i) => buildShift(i))
+        : [buildShift(0)];
       await Promise.all(targets.map((t) => shiftsAPI.createShift(t)));
       alert(`✅ ${targets.length} turno/i creato/i!`);
       setShowForm(false);
@@ -44,63 +58,82 @@ function ShiftsSection({ locations }) {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">📅 Turni</h2>
-        <button onClick={() => setShowForm(!showForm)} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
+        <button onClick={() => setShowForm(!showForm)}
+          className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">
           {showForm ? '❌ Annulla' : '➕ Nuovo Turno'}
         </button>
       </div>
+
       {showForm && (
         <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-gray-50 rounded">
           <div>
             <label className="block text-sm font-semibold mb-1">Location</label>
-            <select name="location_id" value={formData.location_id} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <select name="location_id" value={formData.location_id} onChange={handleChange} required
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500">
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+
+          <div className="grid md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-semibold mb-1">Inizio</label>
-              <input type="datetime-local" name="start_time" value={formData.start_time} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-semibold mb-1">Data</label>
+              <input type="date" name="date" value={formData.date} onChange={handleChange} required
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
             <div>
-              <label className="block text-sm font-semibold mb-1">Fine</label>
-              <input type="datetime-local" name="end_time" value={formData.end_time} onChange={handleChange} required className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-semibold mb-1">Ora inizio</label>
+              <input type="time" name="start_hour" value={formData.start_hour} onChange={handleChange} required
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-semibold mb-1">Durata (ore)</label>
+              <input type="number" name="duration" min="0.5" step="0.5" value={formData.duration} onChange={handleChange} required
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
+
           <div>
-            <label className="block text-sm font-semibold mb-1">Volontari richiesti</label>
-            <input type="number" name="required_count" min="1" value={formData.required_count} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <label className="block text-sm font-semibold mb-1">Partecipanti richiesti</label>
+            <input type="number" name="required_count" min="1" value={formData.required_count} onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
+
           <div className="flex items-center gap-3">
             <input type="checkbox" id="repeat" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} className="w-4 h-4" />
-            <label htmlFor="repeat" className="text-sm font-semibold">Turno ripetitivo</label>
+            <label htmlFor="repeat" className="text-sm font-semibold">Turno ripetitivo settimanale</label>
           </div>
+
           {repeat && (
             <div>
-              <label className="block text-sm font-semibold mb-1">Ripeti per quante settimane?</label>
-              <input type="number" min="1" max="52" value={weeks} onChange={(e) => setWeeks(parseInt(e.target.value))} className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              <label className="block text-sm font-semibold mb-1">Per quante settimane?</label>
+              <input type="number" min="1" max="52" value={weeks} onChange={(e) => setWeeks(parseInt(e.target.value))}
+                className="w-32 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               <p className="text-xs text-gray-500 mt-1">Verranno creati {weeks} turni, uno a settimana.</p>
             </div>
           )}
+
           <button type="submit" className="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700">
             Crea Turno{repeat ? ` (×${weeks})` : ''}
           </button>
         </form>
       )}
-      {!showForm && <p className="text-gray-400 text-sm">Crea nuovi turni singoli o ripetitivi.</p>}
+      {!showForm && <p className="text-gray-400 text-sm">Seleziona location, giorno, ora e durata.</p>}
     </div>
   );
 }
 
+// ── Utenti ────────────────────────────────────────────────────────────────────
 function UsersSection() {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resetModal, setResetModal] = useState(null); // { id, name }
+  const [newPwd, setNewPwd] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
 
   const load = useCallback(async () => {
-    try {
-      const res = await adminAPI.getUsers();
-      setUsers(res.data);
-    } catch { alert('Errore nel caricamento utenti'); }
+    try { const res = await adminAPI.getUsers(); setUsers(res.data); }
+    catch { alert('Errore nel caricamento utenti'); }
     finally { setLoading(false); }
   }, []);
 
@@ -115,9 +148,50 @@ function UsersSection() {
     } catch (err) { alert(err.response?.data?.error || 'Errore nel cambio ruolo'); }
   };
 
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    try {
+      await adminAPI.resetUserPassword(resetModal.id, newPwd);
+      alert(`✅ Password di ${resetModal.name} reimpostata!`);
+      setResetModal(null);
+      setNewPwd('');
+    } catch (err) { alert(err.response?.data?.error || 'Errore nel reset password'); }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-bold mb-4">👥 Utenti registrati</h2>
+
+      {resetModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-80">
+            <h3 className="font-bold mb-1">🔑 Reimposta password</h3>
+            <p className="text-sm text-gray-500 mb-3">{resetModal.name}</p>
+            <form onSubmit={handleResetPassword} className="space-y-3">
+              <div className="relative">
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  placeholder="Nuova password (min 6 caratteri)"
+                  value={newPwd}
+                  onChange={(e) => setNewPwd(e.target.value)}
+                  required minLength={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-10"
+                />
+                <button type="button" onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600 text-xs">
+                  {showPwd ? '🙈' : '👁️'}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1 bg-indigo-600 text-white py-2 rounded font-semibold hover:bg-indigo-700 text-sm">Salva</button>
+                <button type="button" onClick={() => { setResetModal(null); setNewPwd(''); }}
+                  className="flex-1 bg-gray-200 text-gray-700 py-2 rounded hover:bg-gray-300 text-sm">Annulla</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {loading ? <p className="text-gray-400">Caricamento...</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -126,7 +200,7 @@ function UsersSection() {
                 <th className="pb-2 pr-4">Nome</th>
                 <th className="pb-2 pr-4">Email</th>
                 <th className="pb-2 pr-4">Ruolo</th>
-                <th className="pb-2">Azione</th>
+                <th className="pb-2">Azioni</th>
               </tr>
             </thead>
             <tbody>
@@ -139,10 +213,16 @@ function UsersSection() {
                       {u.role === 'admin' ? 'Admin' : 'Volontario'}
                     </span>
                   </td>
-                  <td className="py-2">
+                  <td className="py-2 flex gap-3 flex-wrap">
                     {u.id !== currentUser.id
-                      ? <button onClick={() => toggleRole(u)} className="text-xs text-indigo-600 hover:underline">{u.role === 'admin' ? '→ Volontario' : '→ Admin'}</button>
+                      ? <button onClick={() => toggleRole(u)} className="text-xs text-indigo-600 hover:underline">
+                          {u.role === 'admin' ? '→ Volontario' : '→ Admin'}
+                        </button>
                       : <span className="text-xs text-gray-400">Tu</span>}
+                    <button onClick={() => { setResetModal({ id: u.id, name: u.name }); setNewPwd(''); }}
+                      className="text-xs text-orange-500 hover:underline">
+                      🔑 Reset pwd
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -154,6 +234,7 @@ function UsersSection() {
   );
 }
 
+// ── Statistiche ───────────────────────────────────────────────────────────────
 function StatsSection() {
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -191,14 +272,16 @@ function StatsSection() {
       <div className="flex gap-3 mb-4 flex-wrap">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Anno</label>
-          <select value={year} onChange={(e) => setYear(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <select value={year} onChange={(e) => setYear(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">Tutti</option>
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Mese</label>
-          <select value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <select value={month} onChange={(e) => setMonth(e.target.value)}
+            className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
             <option value="">Tutti</option>
             {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
@@ -209,26 +292,26 @@ function StatsSection() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-left text-gray-500">
-                <th className="pb-2 pr-4">#</th>
+                <th className="pb-2 pr-3">#</th>
                 <th className="pb-2 pr-4">Volontario</th>
                 <th className="pb-2 pr-4 text-center">Prenotazioni</th>
                 <th className="pb-2 pr-4 text-center">Attive</th>
                 <th className="pb-2 pr-4 text-center">Annullate</th>
-                <th className="pb-2 text-center">Ore totali</th>
+                <th className="pb-2 text-center">Ore</th>
               </tr>
             </thead>
             <tbody>
               {stats.map((s, i) => (
                 <tr key={s.id} className={`border-b hover:bg-gray-50 ${s.total_bookings === 0 ? 'text-gray-400' : ''}`}>
-                  <td className="py-2 pr-4 text-gray-400">{i + 1}</td>
+                  <td className="py-2 pr-3 text-gray-400">{i + 1}</td>
                   <td className="py-2 pr-4"><div className="font-medium">{s.name}</div><div className="text-xs text-gray-400">{s.email}</div></td>
                   <td className="py-2 pr-4 text-center font-semibold">{s.total_bookings}</td>
-                  <td className="py-2 pr-4 text-center"><span className="text-green-600 font-medium">{s.active_bookings}</span></td>
-                  <td className="py-2 pr-4 text-center"><span className="text-red-500">{s.cancelled_bookings}</span></td>
+                  <td className="py-2 pr-4 text-center text-green-600 font-medium">{s.active_bookings}</td>
+                  <td className="py-2 pr-4 text-center text-red-500">{s.cancelled_bookings}</td>
                   <td className="py-2 text-center text-indigo-600 font-medium">{s.total_hours}h</td>
                 </tr>
               ))}
-              {stats.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato disponibile</td></tr>}
+              {stats.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato</td></tr>}
             </tbody>
           </table>
         </div>
@@ -237,6 +320,7 @@ function StatsSection() {
   );
 }
 
+// ── Locations ─────────────────────────────────────────────────────────────────
 function LocationsSection() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -254,13 +338,13 @@ function LocationsSection() {
 
   const startEdit = (loc) => { setEditingId(loc.id); setFormData({ name: loc.name, address: loc.address || '' }); setShowForm(true); };
   const startNew = () => { setEditingId(null); setFormData({ name: '', address: '' }); setShowForm(true); };
-  const cancel = () => { setShowForm(false); setEditingId(null); setFormData({ name: '', address: '' }); };
+  const cancel = () => { setShowForm(false); setEditingId(null); };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      if (editingId) { await locationsAPI.updateLocation(editingId, formData); }
-      else { await locationsAPI.createLocation(formData); }
+      if (editingId) await locationsAPI.updateLocation(editingId, formData);
+      else await locationsAPI.createLocation(formData);
       await load(); cancel();
     } catch (err) { alert(err.response?.data?.error || 'Errore nel salvataggio'); }
   };
@@ -269,27 +353,23 @@ function LocationsSection() {
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">📍 Locations</h2>
-        {!showForm && <button onClick={startNew} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">➕ Aggiungi Location</button>}
+        {!showForm && <button onClick={startNew} className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm">➕ Aggiungi</button>}
       </div>
       {showForm && (
         <form onSubmit={handleSubmit} className="space-y-3 mb-6 p-4 bg-gray-50 rounded">
-          <h3 className="font-semibold text-sm">{editingId ? 'Modifica Location' : 'Nuova Location'}</h3>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Nome *</label>
-            <input type="text" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))} required placeholder="es. Sede Centrale" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold mb-1">Indirizzo</label>
-            <input type="text" value={formData.address} onChange={(e) => setFormData((p) => ({ ...p, address: e.target.value }))} placeholder="es. Via Roma 1, Milano" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
+          <h3 className="font-semibold text-sm">{editingId ? 'Modifica' : 'Nuova Location'}</h3>
+          <input type="text" value={formData.name} onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
+            required placeholder="Nome *" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <input type="text" value={formData.address} onChange={(e) => setFormData((p) => ({ ...p, address: e.target.value }))}
+            placeholder="Indirizzo (opzionale)" className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           <div className="flex gap-2">
-            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 text-sm">{editingId ? 'Salva modifiche' : 'Aggiungi'}</button>
+            <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded font-semibold hover:bg-green-700 text-sm">{editingId ? 'Salva' : 'Aggiungi'}</button>
             <button type="button" onClick={cancel} className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300 text-sm">Annulla</button>
           </div>
         </form>
       )}
-      {loading ? <p className="text-gray-400">Caricamento...</p> : locations.length === 0
-        ? <p className="text-gray-400 text-sm">Nessuna location ancora. Aggiungine una!</p>
+      {loading ? <p className="text-gray-400">Caricamento...</p>
+        : locations.length === 0 ? <p className="text-gray-400 text-sm">Nessuna location. Aggiungine una!</p>
         : <ul className="divide-y">{locations.map((loc) => (
             <li key={loc.id} className="py-3 flex justify-between items-start">
               <div><div className="font-medium">{loc.name}</div>{loc.address && <div className="text-sm text-gray-500">{loc.address}</div>}</div>
@@ -301,20 +381,21 @@ function LocationsSection() {
   );
 }
 
+// ── AdminPage ─────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   const [tab, setTab] = useState('turni');
   const [locations, setLocations] = useState([]);
 
-  useEffect(() => { locationsAPI.getLocations().then((res) => setLocations(res.data)).catch(() => {}); }, []);
+  useEffect(() => { locationsAPI.getLocations().then((r) => setLocations(r.data)).catch(() => {}); }, []);
 
   if (user.role !== 'admin') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-red-600 mb-4">❌ Accesso negato</h1>
-          <button onClick={() => navigate('/dashboard')} className="bg-indigo-600 text-white px-4 py-2 rounded">Torna alla Dashboard</button>
+          <button onClick={() => navigate('/dashboard')} className="bg-indigo-600 text-white px-4 py-2 rounded">Dashboard</button>
         </div>
       </div>
     );
