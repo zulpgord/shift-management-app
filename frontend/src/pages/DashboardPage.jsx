@@ -18,7 +18,7 @@ function LeilaLogo() {
   );
 }
 
-function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
+function ShiftModal({ shift, userAssignments, onClose, onAssign, onCance }) {
   if (!shift) return null;
   const fmt = (dt) => new Date(dt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -253,7 +253,7 @@ export default function DashboardPage() {
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="flex items-center justify-between mb-6">
                   <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl font-bold">‹</button>
-                  <h2 className="text-xl font-bold text-gray-800">{MONTHS_IT[calMonth.month]} {calMonth.year}</h2>
+                  <h2 className="text-xl font-bold text-gray-800">{MONTHS_IT[calMonth.month]} {calMonth.year}</h2><button onClick={() => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); }} className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium">Oggi</button>
                   <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl font-bold">›</button>
                 </div>
                 <div className="grid grid-cols-7 mb-1">
