@@ -30,6 +30,8 @@ function ShiftsSection({ locations }) {
 
   const [shifts, setShifts] = useState([]);
   const [loadingShifts, setLoadingShifts] = useState(false);
+    const [editingShift, setEditingShift] = useState(null);
+    const [editForm, setEditForm] = useState({ date: '', start_hour: '09:00', end_hour: '18:00', required_count: 1 });
 
   const loadShifts = useCallback(async () => {
     setLoadingShifts(true);
@@ -45,6 +47,37 @@ function ShiftsSection({ locations }) {
     try { await shiftsAPI.deleteShift(id); loadShifts(); }
     catch (err) { alert(err.response?.data?.error || "Errore nell'eliminazione"); }
   };
+  
+  const startEdit = (s) => {
+    const dt = new Date(s.start_time);
+    const endDt = new Date(s.end_time);
+    setEditForm({
+      date: dt.toISOString().slice(0, 10),
+      start_hour: dt.toTimeString().slice(0, 5),
+      end_hour: endDt.toTimeString().slice(0, 5),
+      required_count: s.required_count,
+    });
+    setEditingShift(s.id);
+  };
+
+  const cancelEdit = () => setEditingShift(null);
+
+  const handleEditSubmit = async (id) => {
+    try {
+      const base = new Date(`${editForm.date}T${editForm.start_hour}:00`);
+      const end = new Date(`${editForm.date}T${editForm.end_hour}:00`);
+      await shiftsAPI.updateShift(id, {
+        start_time: base.toISOString(),
+        end_time: end.toISOString(),
+        required_count: editForm.required_count,
+      });
+      setEditingShift(null);
+      loadShifts();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore nella modifica');
+    }
+  };
+
 
   const buildShift = (offsetDays = 0) => {
     const base = new Date(`${formData.date}T${formData.start_hour}:00`);
@@ -140,20 +173,69 @@ function ShiftsSection({ locations }) {
         ) : (
           <ul className="divide-y">
             {shifts.map((s) => (
-              <li key={s.id} className="py-3 flex justify-between items-center">
-                <div>
-                  <div className="font-medium text-sm">
-                    {new Date(s.start_time).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {s.location_name || ('Location ' + s.location_id)} · {s.required_count} partecipanti
-                  </div>
-                </div>
-                <button onClick={() => handleDelete(s.id)}
-                  className="text-xs text-red-500 hover:underline ml-4 shrink-0">
-                  🗑️ Elimina
-                </button>
-              </li>
+                                <li key={s.id} className="py-3">
+                    {editingShift === s.id ? (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Data</label>
+                            <input type="date" value={editForm.date}
+                              onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Inizio</label>
+                            <input type="time" value={editForm.start_hour}
+                              onChange={e => setEditForm(p => ({ ...p, start_hour: e.target.value }))}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Fine</label>
+                            <input type="time" value={editForm.end_hour}
+                              onChange={e => setEditForm(p => ({ ...p, end_hour: e.target.value }))}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Partecipanti</label>
+                          <input type="number" min="1" value={editForm.required_count}
+                            onChange={e => setEditForm(p => ({ ...p, required_count: parseFloat(e.target.value) }))}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleEditSubmit(s.id)}
+                            className="text-xs text-white bg-indigo-600 px-3 py-1 rounded hover:bg-indigo-700">
+                            ✔ Salva
+                          </button>
+                          <button onClick={cancelEdit}
+                            className="text-xs text-gray-500 hover:underline">
+                            Annulla
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-medium text-sm">
+                            {new Date(s.start_time).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {s.location_name || ('Location ' + s.location_id)} · {s.required_count} partecipanti
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0 ml-4">
+                          <button onClick={() => startEdit(s)}
+                            className="text-xs text-indigo-600 hover:underline">
+                            ✏️ Modifica
+                          </button>
+                          <button onClick={() => handleDelete(s.id)}
+                            className="text-xs text-red-500 hover:underline">
+                            🗑️ Elimina
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
             ))}
           </ul>
         )}
