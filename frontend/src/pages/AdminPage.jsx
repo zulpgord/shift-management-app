@@ -28,6 +28,24 @@ function ShiftsSection({ locations }) {
     }));
   };
 
+  const [shifts, setShifts] = useState([]);
+  const [loadingShifts, setLoadingShifts] = useState(false);
+
+  const loadShifts = useCallback(async () => {
+    setLoadingShifts(true);
+    try { const res = await shiftsAPI.getShifts(); setShifts(res.data); }
+    catch { }
+    finally { setLoadingShifts(false); }
+  }, []);
+
+  useEffect(() => { loadShifts(); }, [loadShifts]);
+
+  const handleDelete = async (id) => {
+    if (!confirm('Eliminare questo turno?')) return;
+    try { await shiftsAPI.deleteShift(id); loadShifts(); }
+    catch (err) { alert(err.response?.data?.error || "Errore nell'eliminazione"); }
+  };
+
   const buildShift = (offsetDays = 0) => {
     const base = new Date(`${formData.date}T${formData.start_hour}:00`);
     base.setDate(base.getDate() + offsetDays * 7);
@@ -47,6 +65,7 @@ function ShiftsSection({ locations }) {
         ? Array.from({ length: weeks }, (_, i) => buildShift(i))
         : [buildShift(0)];
       await Promise.all(targets.map((t) => shiftsAPI.createShift(t)));
+      await loadShifts();
       alert(`✅ ${targets.length} turno/i creato/i!`);
       setShowForm(false);
     } catch (err) {
@@ -63,7 +82,6 @@ function ShiftsSection({ locations }) {
           {showForm ? '❌ Annulla' : '➕ Nuovo Turno'}
         </button>
       </div>
-
       {showForm && (
         <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-gray-50 rounded">
           <div>
@@ -73,7 +91,6 @@ function ShiftsSection({ locations }) {
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
-
           <div className="grid md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-semibold mb-1">Data</label>
@@ -91,18 +108,15 @@ function ShiftsSection({ locations }) {
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
             </div>
           </div>
-
           <div>
             <label className="block text-sm font-semibold mb-1">Partecipanti richiesti</label>
             <input type="number" name="required_count" min="1" value={formData.required_count} onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
-
           <div className="flex items-center gap-3">
             <input type="checkbox" id="repeat" checked={repeat} onChange={(e) => setRepeat(e.target.checked)} className="w-4 h-4" />
             <label htmlFor="repeat" className="text-sm font-semibold">Turno ripetitivo settimanale</label>
           </div>
-
           {repeat && (
             <div>
               <label className="block text-sm font-semibold mb-1">Per quante settimane?</label>
@@ -111,13 +125,39 @@ function ShiftsSection({ locations }) {
               <p className="text-xs text-gray-500 mt-1">Verranno creati {weeks} turni, uno a settimana.</p>
             </div>
           )}
-
           <button type="submit" className="w-full bg-green-600 text-white py-2 rounded font-semibold hover:bg-green-700">
             Crea Turno{repeat ? ` (×${weeks})` : ''}
           </button>
         </form>
       )}
       {!showForm && <p className="text-gray-400 text-sm">Seleziona location, giorno, ora e durata.</p>}
+      <div className="mt-6 border-t pt-4">
+        <h3 className="font-semibold text-sm text-gray-600 mb-3">Turni creati</h3>
+        {loadingShifts ? (
+          <p className="text-gray-400 text-sm">Caricamento...</p>
+        ) : shifts.length === 0 ? (
+          <p className="text-gray-400 text-sm">Nessun turno presente.</p>
+        ) : (
+          <ul className="divide-y">
+            {shifts.map((s) => (
+              <li key={s.id} className="py-3 flex justify-between items-center">
+                <div>
+                  <div className="font-medium text-sm">
+                    {new Date(s.start_time).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {s.location_name || ('Location ' + s.location_id)} · {s.required_count} partecipanti
+                  </div>
+                </div>
+                <button onClick={() => handleDelete(s.id)}
+                  className="text-xs text-red-500 hover:underline ml-4 shrink-0">
+                  🗑️ Elimina
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -161,7 +201,6 @@ function UsersSection() {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-bold mb-4">👥 Utenti registrati</h2>
-
       {resetModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-80">
@@ -191,7 +230,6 @@ function UsersSection() {
           </div>
         </div>
       )}
-
       {loading ? <p className="text-gray-400">Caricamento...</p> : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -241,6 +279,7 @@ function StatsSection() {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState('');
+
   const MONTHS = [
     { value: '1', label: 'Gennaio' }, { value: '2', label: 'Febbraio' },
     { value: '3', label: 'Marzo' }, { value: '4', label: 'Aprile' },
@@ -371,11 +410,11 @@ function LocationsSection() {
       {loading ? <p className="text-gray-400">Caricamento...</p>
         : locations.length === 0 ? <p className="text-gray-400 text-sm">Nessuna location. Aggiungine una!</p>
         : <ul className="divide-y">{locations.map((loc) => (
-            <li key={loc.id} className="py-3 flex justify-between items-start">
-              <div><div className="font-medium">{loc.name}</div>{loc.address && <div className="text-sm text-gray-500">{loc.address}</div>}</div>
-              <button onClick={() => startEdit(loc)} className="text-sm text-indigo-600 hover:underline ml-4 shrink-0">✏️ Modifica</button>
-            </li>
-          ))}</ul>
+          <li key={loc.id} className="py-3 flex justify-between items-start">
+            <div><div className="font-medium">{loc.name}</div>{loc.address && <div className="text-sm text-gray-500">{loc.address}</div>}</div>
+            <button onClick={() => startEdit(loc)} className="text-sm text-indigo-600 hover:underline ml-4 shrink-0">✏️ Modifica</button>
+          </li>
+        ))}</ul>
       }
     </div>
   );
