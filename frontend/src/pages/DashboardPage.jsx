@@ -18,7 +18,7 @@ function LeilaLogo() {
   );
 }
 
-function ShiftModal({ shift, userAssignments, onClose, onAssign, onCance }) {
+function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   if (!shift) return null;
   const fmt = (dt) => new Date(dt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
