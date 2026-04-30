@@ -146,6 +146,7 @@ export default function DashboardPage() {
     try {
       await assignmentsAPI.assignShift(shiftId);
       loadShifts();
+      alert('Prenotazione confermata! ✓');
     } catch (err) {
       alert(err.response?.data?.error || 'Errore nella prenotazione');
     }
