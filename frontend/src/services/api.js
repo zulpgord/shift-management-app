@@ -19,6 +19,7 @@ export const authAPI = {
 
 export const shiftsAPI = {
   getShifts: (params = {}) => api.get('/shifts', { params }),
+    updateShift: (id, data) => api.put(`/shifts/${id}`, data),
   createShift: (shiftData) => api.post('/shifts', shiftData),
   deleteShift: (id) => api.delete(`/shifts/${id}`),
 };
