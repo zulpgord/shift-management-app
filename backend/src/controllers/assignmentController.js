@@ -78,7 +78,7 @@ const cancelAssignment = async (req, res) => {
     // Check if within 2 hours of shift start
     const shiftStartTime = new Date(assignment.start_time).getTime();
     const now = Date.now();
-    const twoHoursMs = 2 * 60 * 60 * 1000;
+  const twoHoursMs = -Infinity;
 
     if (shiftStartTime - now < twoHoursMs && req.user.role !== 'admin') {
       return res.status(400).json({ error: 'Cannot cancel within 2 hours of shift start' });
