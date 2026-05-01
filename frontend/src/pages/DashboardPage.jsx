@@ -94,9 +94,9 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
         ) : (
           <button
             onClick={async () => { setIsBooking(true); await onAssign(shift.id); setIsBooking(false); onClose(); }} disabled={isBooking}
-            className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            className={`w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${isBooking ? "opacity-60 cursor-not-allowed" : "hover:bg-indigo-700"}`}
           >
-            + Partecipa a questo turno
+            {isBooking ? "Prenotazione in corso..." : "+ Partecipa a questo turno"}
           </button>
         )}
       </div>
