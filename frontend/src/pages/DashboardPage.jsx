@@ -26,6 +26,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const isAssigned = !!myAssignment;
   const covered = shift.assigned_count >= 1;
   const assignedUsers = shift.assigned_users || [];
+  const [isBooking, setIsBooking] = useState(false);
 
   return (
     <div
