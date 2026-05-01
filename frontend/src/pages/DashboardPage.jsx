@@ -93,7 +93,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
           </div>
         ) : (
           <button
-            onClick={() => { onAssign(shift.id); onClose(); }}
+            onClick={async () => { setIsBooking(true); await onAssign(shift.id); setIsBooking(false); onClose(); }} disabled={isBooking}
             className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
           >
             + Partecipa a questo turno
@@ -151,7 +151,7 @@ export default function DashboardPage() {
       setToast('Prenotazione confermata!');
       setTimeout(() => setToast(null), 3500);
     } catch (err) {
-      alert(err.response?.data?.error || 'Errore nella prenotazione');
+      setToast(err.response?.data?.error || 'Errore nella prenotazione'); setTimeout(() => setToast(null), 3500)
     }
   };
 
@@ -161,7 +161,7 @@ export default function DashboardPage() {
       await assignmentsAPI.cancelAssignment(assignmentId);
       loadShifts();
     } catch (err) {
-      alert(err.response?.data?.error || 'Errore');
+      setToast(err.response?.data?.error || 'Errore'); setTimeout(() => setToast(null), 3500)
     }
   };
 
