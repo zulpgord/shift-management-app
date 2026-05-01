@@ -11,21 +11,29 @@ const assignShift = async (req, res) => {
   }
 
   try {
-    // Check if already assigned
+    // Check if already assigned (active)
     const existingAssignment = await pool.query(
-      'SELECT id FROM assignments WHERE shift_id = $1 AND user_id = $2',
+      'SELECT id, status FROM assignments WHERE shift_id = $1 AND user_id = $2',
       [shift_id, user_id]
     );
 
-    if (existingAssignment.rows.length > 0) {
+    if (existingAssignment.rows.length > 0 && existingAssignment.rows[0].status === 'assigned') {
       return res.status(400).json({ error: 'Already assigned to this shift' });
     }
 
-    // Create assignment
-    const result = await pool.query(
-      'INSERT INTO assignments (shift_id, user_id, hours_volunteered, status) VALUES ($1, $2, $3, $4) RETURNING *',
-      [shift_id, user_id, hours_volunteered, 'assigned']
-    );
+    // Create or re-activate assignment
+    let result;
+    if (existingAssignment.rows.length > 0) {
+      result = await pool.query(
+        'UPDATE assignments SET status = $1, hours_volunteered = $2 WHERE id = $3 RETURNING *',
+        ['assigned', hours_volunteered, existingAssignment.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        'INSERT INTO assignments (shift_id, user_id, hours_volunteered, status) VALUES ($1, $2, $3, $4) RETURNING *',
+        [shift_id, user_id, hours_volunteered, 'assigned']
+      );
+    }
 
     // Get shift and user details for email
     const shiftDetails = await pool.query(
