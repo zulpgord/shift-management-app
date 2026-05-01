@@ -115,6 +115,7 @@ export default function DashboardPage() {
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState('calendario');
   const [selectedShift, setSelectedShift] = useState(null);
+  const [toast, setToast] = useState(null);
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -146,7 +147,8 @@ export default function DashboardPage() {
     try {
       await assignmentsAPI.assignShift(shiftId);
       loadShifts();
-      alert('Prenotazione confermata! ✓');
+      setToast('Prenotazione confermata!');
+      setTimeout(() => setToast(null), 3500);
     } catch (err) {
       alert(err.response?.data?.error || 'Errore nella prenotazione');
     }
@@ -203,6 +205,11 @@ export default function DashboardPage() {
         onAssign={handleAssign}
         onCancel={handleCancel}
       />
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl font-semibold text-sm" style={{whiteSpace:'nowrap'}}>
+          ✓ {toast}
+        </div>
+      )}
 
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
