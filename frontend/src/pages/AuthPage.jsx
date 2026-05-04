@@ -22,10 +22,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [showReset, setShowReset] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
-  const [resetMessage, setResetMessage] = useState('');
-  const [resetError, setResetError] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
+  const [resetForm, setResetForm] = useState({ email: '', newPassword: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
@@ -38,19 +35,15 @@ export default function AuthPage() {
 
     const handleReset = async (e) => {
     e.preventDefault();
-    setResetLoading(true);
-    setResetError('');
-    setResetMessage('');
     try {
-      await authAPI.resetPassword(resetEmail);
-      setResetMessage('✅ Controlla la tua email: ti abbiamo inviato una nuova password temporanea.');
+      await authAPI.resetPassword(resetForm.email, resetForm.newPassword);
+      alert('✅ Password reimpostata con successo!');
+      setShowReset(false);
+      setResetForm({ email: '', newPassword: '' });
     } catch (err) {
-      setResetError(err.response?.data?.error || 'Errore nel reset della password.');
-    } finally {
-      setResetLoading(false);
+      alert(err.response?.data?.error || 'Errore nel reset della password');
     }
   };
-
 const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -111,35 +104,33 @@ const handleSubmit = async (e) => {
             </button>
 
           {isLogin && (
-            <div style={{ marginTop: '12px', textAlign: 'center' }}>
-              {!showReset ? (
-                <button
-                  type="button"
-                  onClick={() => { setShowReset(true); setResetMessage(''); setResetError(''); }}
-                  style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline' }}
-                >
-                  Hai dimenticato la password?
-                </button>
-              ) : (
-                <form onSubmit={handleReset} style={{ marginTop: '8px' }}>
-                  <input
-                    type="email"
-                    placeholder="La tua email"
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    required
-                    style={{ width: '100%', padding: '8px', marginBottom: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }}
-                  />
-                  {resetMessage && <p style={{ color: '#16a34a', fontSize: '0.875rem', marginBottom: '8px' }}>{resetMessage}</p>}
-                  {resetError && <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '8px' }}>{resetError}</p>}
-                  <button type="submit" disabled={resetLoading} style={{ width: '100%', padding: '8px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '6px' }}>
-                    {resetLoading ? 'Invio...' : 'Invia nuova password'}
+            <button type="button" onClick={() => setShowReset(true)}
+              style={{ marginTop: '12px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline', display: 'block', width: '100%' }}>
+              🔑 Reimposta password
+            </button>
+          )}
+
+          {showReset && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+              <div style={{ background: 'white', borderRadius: '8px', padding: '24px', width: '320px' }}>
+                <h3 style={{ fontWeight: 'bold', marginBottom: '4px' }}>🔑 Reimposta password</h3>
+                <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+                  <input type="email" placeholder="Email" value={resetForm.email}
+                    onChange={e => setResetForm(p => ({ ...p, email: e.target.value }))}
+                    required style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <input type="password" placeholder="Nuova password (min 6 caratteri)" value={resetForm.newPassword}
+                    onChange={e => setResetForm(p => ({ ...p, newPassword: e.target.value }))}
+                    required minLength={6} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
+                  <button type="submit" style={{ padding: '8px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                    Reimposta
                   </button>
-                  <button type="button" onClick={() => setShowReset(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}>
+                  <button type="button" onClick={() => setShowReset(false)} style={{ padding: '6px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}>
                     Annulla
                   </button>
                 </form>
-              )}
+              </div>
+            </div>
+          )}
             </div>
           )}
           </p>
