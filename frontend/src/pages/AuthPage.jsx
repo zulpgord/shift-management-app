@@ -97,7 +97,6 @@ const handleSubmit = async (e) => {
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-500 text-sm">
             {isLogin ? 'Non hai un account? ' : 'Hai già un account? '}
             <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-600 font-semibold hover:underline">
               {isLogin ? 'Registrati' : 'Accedi'}
@@ -133,7 +132,6 @@ const handleSubmit = async (e) => {
           )}
             </div>
           )}
-          </p>
         </div>
       </div>
     </div>
