@@ -33,18 +33,19 @@ export default function AuthPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-    const handleReset = async (e) => {
+  const handleReset = async (e) => {
     e.preventDefault();
     try {
       await authAPI.resetPassword(resetForm.email, resetForm.newPassword);
-      alert('✅ Password reimpostata con successo!');
+      alert('\u2705 Password reimpostata con successo!');
       setShowReset(false);
       setResetForm({ email: '', newPassword: '' });
     } catch (err) {
       alert(err.response?.data?.error || 'Errore nel reset della password');
     }
   };
-const handleSubmit = async (e) => {
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -59,8 +60,10 @@ const handleSubmit = async (e) => {
       localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Qualcosa è andato storto');
-    } finally { setLoading(false); }
+      setError(err.response?.data?.error || 'Qualcosa \u00e8 andato storto');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,15 +72,12 @@ const handleSubmit = async (e) => {
         <div className="flex justify-center mb-8">
           <LeilaLogo />
         </div>
-
         <h2 className="text-lg font-semibold text-center text-gray-700 mb-6">
           {isLogin ? 'Accedi al tuo account' : 'Crea un account'}
         </h2>
-
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>
         )}
-
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <input type="text" name="name" placeholder="Nome completo" value={formData.name} onChange={handleChange} required={!isLogin}
@@ -86,54 +86,50 @@ const handleSubmit = async (e) => {
           <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} required
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm pr-10" />
           <div className="relative">
-                <input type={showPwd ? "text" : "password"} name="password" placeholder="Password" value={formData.password} onChange={handleChange} required
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm pr-10" />
-          <button type="button" onClick={() => setShowPwd(!showPwd)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPwd ? "🙈" : "👁"}</button>
-              </div>
-              <button type="submit" disabled={loading}
+            <input type={showPwd ? "text" : "password"} name="password" placeholder="Password" value={formData.password} onChange={handleChange} required
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm pr-10" />
+            <button type="button" onClick={() => setShowPwd(!showPwd)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">{showPwd ? "\uD83D\uDE48" : "\uD83D\uDC41"}</button>
+          </div>
+          <button type="submit" disabled={loading}
             className="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
             {loading ? 'Caricamento...' : isLogin ? 'Accedi' : 'Registrati'}
           </button>
         </form>
-
         <div className="mt-6 text-center">
-            {isLogin ? 'Non hai un account? ' : 'Hai già un account? '}
-            <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-600 font-semibold hover:underline">
-              {isLogin ? 'Registrati' : 'Accedi'}
-            </button>
-
+          {isLogin ? 'Non hai un account? ' : 'Hai gi\u00e0 un account? '}
+          <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-600 font-semibold hover:underline">
+            {isLogin ? 'Registrati' : 'Accedi'}
+          </button>
           {isLogin && (
             <button type="button" onClick={() => setShowReset(true)}
               style={{ marginTop: '12px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline', display: 'block', width: '100%' }}>
-              🔑 Reimposta password
+              \uD83D\uDD11 Reimposta password
             </button>
-          )}
-
-          {showReset && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-              <div style={{ background: 'white', borderRadius: '8px', padding: '24px', width: '320px' }}>
-                <h3 style={{ fontWeight: 'bold', marginBottom: '4px' }}>🔑 Reimposta password</h3>
-                <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
-                  <input type="email" placeholder="Email" value={resetForm.email}
-                    onChange={e => setResetForm(p => ({ ...p, email: e.target.value }))}
-                    required style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
-                  <input type="password" placeholder="Nuova password (min 6 caratteri)" value={resetForm.newPassword}
-                    onChange={e => setResetForm(p => ({ ...p, newPassword: e.target.value }))}
-                    required minLength={6} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
-                  <button type="submit" style={{ padding: '8px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
-                    Reimposta
-                  </button>
-                  <button type="button" onClick={() => setShowReset(false)} style={{ padding: '6px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}>
-                    Annulla
-                  </button>
-                </form>
-              </div>
-            </div>
-          )}
-            </div>
           )}
         </div>
       </div>
+      {showReset && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'white', borderRadius: '8px', padding: '24px', width: '320px' }}>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '4px' }}>\uD83D\uDD11 Reimposta password</h3>
+            <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+              <input type="email" placeholder="Email" value={resetForm.email}
+                onChange={e => setResetForm(p => ({ ...p, email: e.target.value }))}
+                required style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
+              <input type="password" placeholder="Nuova password (min 6 caratteri)" value={resetForm.newPassword}
+                onChange={e => setResetForm(p => ({ ...p, newPassword: e.target.value }))}
+                required minLength={6} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }} />
+              <button type="submit" style={{ padding: '8px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                Reimposta
+              </button>
+              <button type="button" onClick={() => setShowReset(false)} style={{ padding: '6px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}>
+                Annulla
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
