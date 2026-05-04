@@ -1,5 +1,4 @@
 const bcrypt = require('bcrypt');
-const { sendEmail } = require('../utils/emailService');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../db/database');
 require('dotenv').config();
@@ -106,23 +105,17 @@ const updateUserRole = async (req, res) => {
 };
 
 const resetPassword = async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email richiesta' });
+  const { email, newPassword } = req.body;
+  if (!email || !newPassword) return res.status(400).json({ error: 'Email e nuova password richieste' });
+  if (newPassword.length < 6) return res.status(400).json({ error: 'La password deve essere di almeno 6 caratteri' });
   try {
     const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Nessun account trovato con questa email' });
     }
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-    let tempPassword = '';
-    for (let i = 0; i < 10; i++) {
-      tempPassword += chars[Math.floor(Math.random() * chars.length)];
-    }
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
     await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [hashedPassword, email]);
-    await sendEmail(email, '🔑 Reset password - Leila',
-      `La tua nuova password temporanea è:\n\n${tempPassword}\n\nAccedi con questa password e cambiala appena possibile.`);
-    res.json({ message: 'Nuova password inviata via email' });
+    res.json({ message: 'Password reimpostata con successo' });
   } catch (err) {
     console.error('Reset password error:', err);
     res.status(500).json({ error: 'Errore nel reset della password' });
