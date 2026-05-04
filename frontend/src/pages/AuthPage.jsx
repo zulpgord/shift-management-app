@@ -21,6 +21,11 @@ function LeilaLogo() {
 export default function AuthPage() {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [showReset, setShowReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '', name: '' });
   const [error, setError] = useState('');
@@ -31,7 +36,22 @@ export default function AuthPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = async (e) => {
+    const handleReset = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setResetError('');
+    setResetMessage('');
+    try {
+      await authAPI.resetPassword(resetEmail);
+      setResetMessage('✅ Controlla la tua email: ti abbiamo inviato una nuova password temporanea.');
+    } catch (err) {
+      setResetError(err.response?.data?.error || 'Errore nel reset della password.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -89,6 +109,39 @@ export default function AuthPage() {
             <button onClick={() => setIsLogin(!isLogin)} className="text-indigo-600 font-semibold hover:underline">
               {isLogin ? 'Registrati' : 'Accedi'}
             </button>
+
+          {isLogin && (
+            <div style={{ marginTop: '12px', textAlign: 'center' }}>
+              {!showReset ? (
+                <button
+                  type="button"
+                  onClick={() => { setShowReset(true); setResetMessage(''); setResetError(''); }}
+                  style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline' }}
+                >
+                  Hai dimenticato la password?
+                </button>
+              ) : (
+                <form onSubmit={handleReset} style={{ marginTop: '8px' }}>
+                  <input
+                    type="email"
+                    placeholder="La tua email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    required
+                    style={{ width: '100%', padding: '8px', marginBottom: '8px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }}
+                  />
+                  {resetMessage && <p style={{ color: '#16a34a', fontSize: '0.875rem', marginBottom: '8px' }}>{resetMessage}</p>}
+                  {resetError && <p style={{ color: '#dc2626', fontSize: '0.875rem', marginBottom: '8px' }}>{resetError}</p>}
+                  <button type="submit" disabled={resetLoading} style={{ width: '100%', padding: '8px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', marginBottom: '6px' }}>
+                    {resetLoading ? 'Invio...' : 'Invia nuova password'}
+                  </button>
+                  <button type="button" onClick={() => setShowReset(false)} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.8rem', textDecoration: 'underline' }}>
+                    Annulla
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
           </p>
         </div>
       </div>
