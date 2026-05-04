@@ -30,22 +30,22 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const startServer = async () => {
-  try {
-    await initializeDatabase();
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-      console.log('  GET    /api/locations');
-      console.log('  POST   /api/locations (admin)');
-      console.log('  PUT    /api/locations/:id (admin)');
-      console.log('  GET    /api/admin/users (admin)');
-      console.log('  PUT    /api/admin/users/:id/role (admin)');
-      console.log('  GET    /api/admin/stats (admin)');
-    });
-  } catch (err) {
-    console.error('Failed to start server:', err);
-    process.exit(1);
-  }
+const startServer = () => {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log('  GET    /api/locations');
+    console.log('  POST   /api/locations (admin)');
+    console.log('  PUT    /api/locations/:id (admin)');
+    console.log('  GET    /api/admin/users (admin)');
+    console.log('  PUT    /api/admin/users/:id/role (admin)');
+    console.log('  GET    /api/admin/stats (admin)');
+    try {
+      await initializeDatabase();
+      console.log('Database initialized');
+    } catch (err) {
+      console.error('Database init error:', err);
+    }
+  });
 };
 
 startServer();
