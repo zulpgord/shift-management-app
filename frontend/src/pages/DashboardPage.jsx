@@ -24,7 +24,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
   const isAssigned = !!myAssignment;
-  const covered = shift.assigned_count >= 1;
+  const covered = shift.assigned_count >= (shift.min_participants || 1);
   const assignedUsers = shift.assigned_users || [];
   const [isBooking, setIsBooking] = useState(false);
 
@@ -55,7 +55,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
           <div className="flex items-center gap-2">
             <span className="text-base">👥</span>
             <span className={`text-sm font-semibold ${covered ? 'text-green-700' : 'text-red-600'}`}>
-              {shift.assigned_count} / {shift.required_count} volontari
+              {shift.assigned_count} / {shift.required_count} · min {shift.min_participants || 1}
             </span>
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
               {covered ? 'Coperto' : 'Non coperto'}
@@ -282,7 +282,7 @@ export default function DashboardPage() {
                             <p className={`text-xs font-semibold mb-1 px-0.5 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
                             <div className="space-y-0.5">
                               {dayShifts.map(shift => {
-                                const covered = shift.assigned_count >= 1;
+                                const covered = shift.assigned_count >= (shift.min_participants || 1);
                                 const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
                                 const assignedUsers = shift.assigned_users || [];
                                 return (
@@ -310,7 +310,7 @@ export default function DashboardPage() {
                   })}
                 </div>
                 <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Coperto (≥1 volontario)</span></div>
+                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Coperto (min raggiunto)</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Non coperto</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-100 ring-1 ring-indigo-400"></div><span className="text-xs text-gray-500">Mio turno</span></div>
                   <div className="flex items-center gap-2 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
@@ -328,7 +328,7 @@ export default function DashboardPage() {
                     <div className="space-y-3">
                       {shifts.map(shift => {
                         const isAssigned = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
-                        const covered = shift.assigned_count >= 1;
+                        const covered = shift.assigned_count >= (shift.min_participants || 1);
                         const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
                         const assignedUsers = shift.assigned_users || [];
                         return (
@@ -338,7 +338,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-semibold text-gray-900">{shift.location_name}</span>
                                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                                    {shift.assigned_count}/{shift.required_count} volontari
+                                    {shift.assigned_count}/{shift.required_count} (min {shift.min_participants || 1})
                                   </span>
                                 </div>
                                 <p className="text-gray-500 text-sm">{fmtDate(shift.start_time)}</p>
