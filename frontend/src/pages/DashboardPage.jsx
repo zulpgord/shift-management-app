@@ -27,22 +27,13 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const covered = shift.assigned_count >= (shift.min_participants || 1);
   const assignedUsers = shift.assigned_users || [];
   const [isBooking, setIsBooking] = useState(false);
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
-        onClick={e => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-xl font-bold text-gray-900">{shift.location_name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
-
         <div className="space-y-2 mb-5">
           <div className="flex items-center gap-2 text-gray-600">
             <span className="text-base">📅</span>
@@ -62,7 +53,6 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
             </span>
           </div>
         </div>
-
         {assignedUsers.length > 0 && (
           <div className="mb-5">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Iscritti</p>
@@ -78,24 +68,17 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
             </div>
           </div>
         )}
-
         {isAssigned ? (
           <div className="space-y-2">
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-center text-indigo-700 text-sm font-medium">
               ✓ Sei registrato a questo turno
             </div>
-            <button
-              onClick={() => { onCancel(myAssignment.id); onClose(); }}
-              className="w-full bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors"
-            >
+            <button onClick={() => { onCancel(myAssignment.id); onClose(); }} className="w-full bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-100 transition-colors">
               Annulla partecipazione
             </button>
           </div>
         ) : (
-          <button
-            onClick={() => { onAssign(shift.id); onClose(); }}
-            className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors"
-          >
+          <button onClick={() => { onAssign(shift.id); onClose(); }} className="w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors">
             + Partecipa a questo turno
           </button>
         )}
@@ -162,7 +145,8 @@ export default function DashboardPage() {
       await assignmentsAPI.cancelAssignment(assignmentId);
       loadShifts();
     } catch (err) {
-      setToast(err.response?.data?.error || 'Errore'); setTimeout(() => setToast(null), 3500)
+      setToast(err.response?.data?.error || 'Errore');
+      setTimeout(() => setToast(null), 3500);
     }
   };
 
@@ -174,19 +158,29 @@ export default function DashboardPage() {
 
   const prevMonth = () => setCalMonth(({ year, month }) => month === 0 ? { year: year - 1, month: 11 } : { year, month: month - 1 });
   const nextMonth = () => setCalMonth(({ year, month }) => month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 });
+  const goToday = () => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); };
+
+  const monthShifts = shifts.filter(s => {
+    const d = new Date(s.start_time);
+    return d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month;
+  });
+  const coveredCount = monthShifts.filter(s => s.assigned_count >= (s.min_participants || 1)).length;
+  const coveragePercent = monthShifts.length > 0 ? Math.round((coveredCount / monthShifts.length) * 100) : null;
+  const myMonthBookings = userAssignments.filter(a => {
+    if (a.status !== 'assigned') return false;
+    const d = new Date(a.start_time);
+    return d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month;
+  });
 
   const daysInMonth = new Date(calMonth.year, calMonth.month + 1, 0).getDate();
   const rawFirstDay = new Date(calMonth.year, calMonth.month, 1).getDay();
   const firstDay = (rawFirstDay + 6) % 7;
 
   const shiftsByDay = {};
-  shifts.forEach(shift => {
-    const d = new Date(shift.start_time);
-    if (d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month) {
-      const day = d.getDate();
-      if (!shiftsByDay[day]) shiftsByDay[day] = [];
-      shiftsByDay[day].push(shift);
-    }
+  monthShifts.forEach(shift => {
+    const day = new Date(shift.start_time).getDate();
+    if (!shiftsByDay[day]) shiftsByDay[day] = [];
+    shiftsByDay[day].push(shift);
   });
 
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
@@ -200,72 +194,65 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <ShiftModal
-        shift={selectedShift}
-        userAssignments={userAssignments}
-        onClose={() => setSelectedShift(null)}
-        onAssign={handleAssign}
-        onCancel={handleCancel}
-      />
+      <ShiftModal shift={selectedShift} userAssignments={userAssignments} onClose={() => setSelectedShift(null)} onAssign={handleAssign} onCancel={handleCancel} />
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white px-6 py-3 rounded-xl shadow-xl font-semibold text-sm" style={{whiteSpace:'nowrap'}}>
           ✓ {toast}
         </div>
       )}
-
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <LeilaLogo />
           <div className="flex items-center gap-3">
             {user.role === 'admin' && (
-              <button onClick={() => navigate('/admin')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700 font-medium">
-                Admin
-              </button>
+              <button onClick={() => navigate('/admin')} className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-indigo-700 font-medium">Admin</button>
             )}
             <span className="text-gray-600 text-sm">{user.name}</span>
-            <button onClick={handleLogout} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-sm hover:bg-red-100 font-medium">
-              Esci
-            </button>
+            <button onClick={handleLogout} className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-sm hover:bg-red-100 font-medium">Esci</button>
           </div>
         </div>
       </header>
-
       <main className="max-w-6xl mx-auto p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xl font-bold shadow-sm">‹</button>
+            <h2 className="text-lg font-bold text-gray-800 min-w-[180px] text-center">{MONTHS_IT[calMonth.month]} {calMonth.year}</h2>
+            <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xl font-bold shadow-sm">›</button>
+          </div>
+          <button onClick={goToday} className="text-xs px-3 py-1.5 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium">Oggi</button>
+        </div>
         <div className="grid grid-cols-2 gap-4 mb-6">
           <div className="bg-white p-4 rounded-xl shadow-sm">
-            <p className="text-gray-500 text-sm">Turni disponibili</p>
-            <p className="text-3xl font-bold text-indigo-600">{shifts.length}</p>
+            <p className="text-gray-500 text-sm">Copertura del mese</p>
+            {coveragePercent === null ? (
+              <p className="text-3xl font-bold text-gray-300">—</p>
+            ) : (
+              <p className={`text-3xl font-bold ${coveragePercent >= 80 ? 'text-green-600' : coveragePercent >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                {coveragePercent}%
+              </p>
+            )}
+            <p className="text-xs text-gray-400 mt-1">{coveredCount} / {monthShifts.length} turni coperti</p>
           </div>
           <div className="bg-white p-4 rounded-xl shadow-sm">
             <p className="text-gray-500 text-sm">Le mie prenotazioni</p>
-            <p className="text-3xl font-bold text-green-600">
-              {userAssignments.filter(a => a.status === 'assigned').length}
-            </p>
+            <p className="text-3xl font-bold text-blue-600">{myMonthBookings.length}</p>
+            <p className="text-xs text-gray-400 mt-1">nel mese selezionato</p>
           </div>
         </div>
-
         <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-lg w-fit">
           {['calendario', 'lista'].map(mode => (
-            <button key={mode} onClick={() => setViewMode(mode)}
-              className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${viewMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+            <button key={mode} onClick={() => setViewMode(mode)} className={`px-5 py-2 rounded-md text-sm font-medium transition-all ${viewMode === mode ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
               {mode === 'calendario' ? '📅 Calendario' : '📋 Lista'}
             </button>
           ))}
         </div>
-
         {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">{error}</div>}
-
         {loading ? (
           <div className="text-center py-16 text-gray-400">Caricamento...</div>
         ) : (
           <>
             {viewMode === 'calendario' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl font-bold">‹</button>
-                  <h2 className="text-xl font-bold text-gray-800">{MONTHS_IT[calMonth.month]} {calMonth.year}</h2><button onClick={() => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); }} className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium">Oggi</button>
-                  <button onClick={nextMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xl font-bold">›</button>
-                </div>
                 <div className="grid grid-cols-7 mb-1">
                   {DAYS_IT.map(d => (
                     <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
@@ -289,7 +276,9 @@ export default function DashboardPage() {
                                   <div
                                     key={shift.id}
                                     onClick={() => setSelectedShift(shift)}
-                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'} ${isMyShift ? 'ring-1 ring-indigo-400' : ''}`}
+                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${
+                                      isMyShift ? 'bg-blue-100 text-blue-800' : covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}
                                   >
                                     <div className="truncate font-semibold">{shift.location_name}</div>
                                     <div className="text-xs opacity-75">{fmt(shift.start_time)}–{fmt(shift.end_time)}</div>
@@ -310,34 +299,33 @@ export default function DashboardPage() {
                   })}
                 </div>
                 <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-blue-400"></div><span className="text-xs text-gray-500">I miei turni</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Coperto (min raggiunto)</span></div>
                   <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Non coperto</span></div>
-                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-indigo-100 ring-1 ring-indigo-400"></div><span className="text-xs text-gray-500">Mio turno</span></div>
                   <div className="flex items-center gap-2 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
             )}
-
             {viewMode === 'lista' && (
               <>
                 <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-                  <h2 className="text-lg font-bold mb-4 text-gray-800">Turni disponibili</h2>
-                  {shifts.length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">Nessun turno presente</p>
+                  <h2 className="text-lg font-bold mb-4 text-gray-800">Turni — {MONTHS_IT[calMonth.month]} {calMonth.year}</h2>
+                  {monthShifts.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">Nessun turno in questo mese</p>
                   ) : (
                     <div className="space-y-3">
-                      {shifts.map(shift => {
-                        const isAssigned = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
+                      {monthShifts.map(shift => {
+                        const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
                         const covered = shift.assigned_count >= (shift.min_participants || 1);
                         const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
                         const assignedUsers = shift.assigned_users || [];
                         return (
-                          <div key={shift.id} className={`border rounded-xl p-4 ${covered ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+                          <div key={shift.id} className={`border rounded-xl p-4 ${isMyShift ? 'border-blue-200 bg-blue-50' : covered ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
                             <div className="flex justify-between items-start">
                               <div>
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-semibold text-gray-900">{shift.location_name}</span>
-                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isMyShift ? 'bg-blue-200 text-blue-800' : covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
                                     {shift.assigned_count}/{shift.required_count} (min {shift.min_participants || 1})
                                   </span>
                                 </div>
@@ -348,9 +336,10 @@ export default function DashboardPage() {
                                 )}
                               </div>
                               <button
-                                onClick={() => isAssigned ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
-                                className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${isAssigned ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}>
-                                {isAssigned ? '✓ Prenotato' : '+ Partecipa'}
+                                onClick={() => isMyShift ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
+                                className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${isMyShift ? 'bg-blue-200 text-blue-800 hover:bg-blue-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                              >
+                                {isMyShift ? '✓ Prenotato' : '+ Partecipa'}
                               </button>
                             </div>
                           </div>
@@ -360,13 +349,13 @@ export default function DashboardPage() {
                   )}
                 </div>
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h2 className="text-lg font-bold mb-4 text-gray-800">I miei turni</h2>
-                  {userAssignments.filter(a => a.status === 'assigned').length === 0 ? (
-                    <p className="text-gray-400 text-center py-8">Nessuna prenotazione</p>
+                  <h2 className="text-lg font-bold mb-4 text-gray-800">I miei turni — {MONTHS_IT[calMonth.month]} {calMonth.year}</h2>
+                  {myMonthBookings.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">Nessuna prenotazione in questo mese</p>
                   ) : (
                     <div className="space-y-3">
-                      {userAssignments.filter(a => a.status === 'assigned').map(a => (
-                        <div key={a.id} className="border border-indigo-200 bg-indigo-50 rounded-xl p-4 flex justify-between items-center">
+                      {myMonthBookings.map(a => (
+                        <div key={a.id} className="border border-blue-200 bg-blue-50 rounded-xl p-4 flex justify-between items-center">
                           <div>
                             <span className="font-semibold text-gray-900">{a.location_name}</span>
                             <p className="text-gray-500 text-sm">{fmtDate(a.start_time)}</p>
@@ -374,7 +363,7 @@ export default function DashboardPage() {
                           </div>
                           <button onClick={() => handleCancel(a.id)} className="text-red-500 hover:text-red-700 text-sm font-medium">
                             Annulla
-          </button>
+                          </button>
                         </div>
                       ))}
                     </div>
