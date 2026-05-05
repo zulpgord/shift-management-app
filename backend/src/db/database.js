@@ -71,6 +71,9 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_assignments_user ON assignments(user_id);
       CREATE INDEX IF NOT EXISTS idx_assignments_shift ON assignments(shift_id);
       CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id);
+
+    -- Migrations: add columns safely if they don't exist
+    ALTER TABLE shifts ADD COLUMN IF NOT EXISTS min_participants INTEGER DEFAULT 1;
     `);
     console.log('✅ Database initialized');
   } catch (err) {
