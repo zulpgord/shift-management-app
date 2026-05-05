@@ -13,6 +13,7 @@ function ShiftsSection({ locations }) {
     start_hour: '09:00',
     duration: 2,
     required_count: 1,
+    min_participants: 1,
   });
 
   useEffect(() => {
@@ -24,14 +25,14 @@ function ShiftsSection({ locations }) {
     const { name, value } = e.target;
     setFormData((p) => ({
       ...p,
-      [name]: (name === 'required_count' || name === 'duration') ? parseFloat(value) : value,
+      [name]: (name === 'required_count' || name === 'duration' || name === 'min_participants') ? parseFloat(value) : value,
     }));
   };
 
   const [shifts, setShifts] = useState([]);
   const [loadingShifts, setLoadingShifts] = useState(false);
     const [editingShift, setEditingShift] = useState(null);
-    const [editForm, setEditForm] = useState({ date: '', start_hour: '09:00', end_hour: '18:00', required_count: 1 });
+    const [editForm, setEditForm] = useState({ date: '', start_hour: '09:00', end_hour: '18:00', required_count: 1, min_participants: 1 });
 
   const loadShifts = useCallback(async () => {
     setLoadingShifts(true);
@@ -88,6 +89,7 @@ function ShiftsSection({ locations }) {
       start_time: base.toISOString(),
       end_time: end.toISOString(),
       required_count: formData.required_count,
+      min_participants: formData.min_participants,
     };
   };
 
@@ -142,8 +144,13 @@ function ShiftsSection({ locations }) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-1">Partecipanti richiesti</label>
+            <label className="block text-sm font-semibold mb-1">Partecipanti massimi</label>
             <input type="number" name="required_count" min="1" value={formData.required_count} onChange={handleChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Minimo per "coperto" 🟢</label>
+            <input type="number" name="min_participants" min="1" value={formData.min_participants} onChange={handleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500" />
           </div>
           <div className="flex items-center gap-3">
@@ -202,6 +209,12 @@ function ShiftsSection({ locations }) {
                             onChange={e => setEditForm(p => ({ ...p, required_count: parseFloat(e.target.value) }))}
                             className="w-24 px-2 py-1 border border-gray-300 rounded text-sm" />
                         </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">Minimo 🟢</label>
+                          <input type="number" min="1" value={editForm.min_participants}
+                            onChange={e => setEditForm(p => ({ ...p, min_participants: parseFloat(e.target.value) }))}
+                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm" />
+                        </div>
                         <div className="flex gap-2">
                           <button onClick={() => handleEditSubmit(s.id)}
                             className="text-xs text-white bg-indigo-600 px-3 py-1 rounded hover:bg-indigo-700">
@@ -220,7 +233,7 @@ function ShiftsSection({ locations }) {
                             {new Date(s.start_time).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {s.location_name || ('Location ' + s.location_id)} · {s.required_count} partecipanti
+                            {s.location_name || ('Location ' + s.location_id)} · min {s.min_participants || 1} / max {s.required_count}
                           </div>
                         </div>
                         <div className="flex gap-2 shrink-0 ml-4">
