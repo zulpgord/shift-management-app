@@ -49,14 +49,14 @@ const getShifts = async (req, res) => {
 
 // Create shift (admin only)
 const createShift = async (req, res) => {
-  const { location_id, start_time, end_time, required_count } = req.body;
+  const { location_id, start_time, end_time, required_count, min_participants } = req.body;
   if (!location_id || !start_time || !end_time) {
     return res.status(400).json({ error: 'Missing required fields: location_id, start_time, end_time' });
   }
   try {
     const result = await pool.query(
-      'INSERT INTO shifts (location_id, start_time, end_time, required_count, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [location_id, start_time, end_time, required_count || 1, req.user.id]
+      'INSERT INTO shifts (location_id, start_time, end_time, required_count, min_participants, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [location_id, start_time, end_time, required_count || 1, min_participants || 1, req.user.id]
     );
     res.status(201).json({ message: 'Shift created', shift: result.rows[0] });
   } catch (err) {
@@ -68,11 +68,11 @@ const createShift = async (req, res) => {
 // Update shift (admin only)
 const updateShift = async (req, res) => {
   const { id } = req.params;
-  const { location_id, start_time, end_time, required_count } = req.body;
+  const { location_id, start_time, end_time, required_count, min_participants } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE shifts SET location_id = COALESCE($1, location_id), start_time = COALESCE($2, start_time), end_time = COALESCE($3, end_time), required_count = COALESCE($4, required_count) WHERE id = $5 RETURNING *',
-      [location_id, start_time, end_time, required_count, id]
+      'UPDATE shifts SET location_id = COALESCE($1, location_id), start_time = COALESCE($2, start_time), end_time = COALESCE($3, end_time), required_count = COALESCE($4, required_count), min_participants = COALESCE($5, min_participants) WHERE id = $6 RETURNING *',
+      [location_id, start_time, end_time, required_count, min_participants, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Shift not found' });
