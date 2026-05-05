@@ -57,6 +57,7 @@ function ShiftsSection({ locations }) {
       start_hour: dt.toTimeString().slice(0, 5),
       end_hour: endDt.toTimeString().slice(0, 5),
       required_count: s.required_count,
+      min_participants: s.min_participants || 1,
     });
     setEditingShift(s.id);
   };
@@ -71,6 +72,7 @@ function ShiftsSection({ locations }) {
         start_time: base.toISOString(),
         end_time: end.toISOString(),
         required_count: editForm.required_count,
+        min_participants: editForm.min_participants,
       });
       setEditingShift(null);
       loadShifts();
