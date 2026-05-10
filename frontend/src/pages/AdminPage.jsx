@@ -41,6 +41,11 @@ function ShiftsSection({ locations }) {
   const [shiftsLoading, setShiftsLoading] = useState(true);
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
 
+  // Edit state
+  const [editingShift, setEditingShift] = useState(null);
+  const [editData, setEditData] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
   useEffect(() => {
     if (locations.length > 0 && !formData.location_id) {
       setFormData((p) => ({ ...p, location_id: String(locations[0].id) }));
@@ -61,18 +66,66 @@ function ShiftsSection({ locations }) {
 
   useEffect(() => { loadShifts(); }, [loadShifts]);
 
-  const weekEnd = addDays(weekStart, 6);
+  // Auto-fix required_count=1 for future shifts with missing value
+  useEffect(() => {
+    adminAPI.fixFutureShifts().catch(() => {});
+  }, []);
 
-  const weekShifts = allShifts.filter(s => {
-    const d = new Date(s.start_time);
-    return d >= weekStart && d <= new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59);
-  }).sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+  // ── Edit helpers ──────────────────────────────────────────
+  const startEditShift = (shift) => {
+    const start = new Date(shift.start_time);
+    const end = new Date(shift.end_time);
+    const durationHrs = (end - start) / (1000 * 60 * 60);
+    const pad = (n) => String(n).padStart(2, '0');
+    setEditingShift(shift.id);
+    setEditData({
+      location_id: String(shift.location_id),
+      date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+      start_hour: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+      duration: durationHrs,
+      required_count: shift.required_count || 1,
+    });
+  };
 
-  const prevWeek = () => setWeekStart(w => addDays(w, -7));
-  const nextWeek = () => setWeekStart(w => addDays(w, 7));
-  const goCurrentWeek = () => setWeekStart(getWeekStart(new Date()));
+  const handleEditChange = (e) => {
+    const { name, value } = e.target;
+    setEditData((p) => ({
+      ...p,
+      [name]: (name === 'required_count' || name === 'duration') ? parseFloat(value) : value,
+    }));
+  };
 
-  const isCurrentWeek = getWeekStart(new Date()).getTime() === weekStart.getTime();
+  const handleEditSave = async (shiftId) => {
+    setSavingEdit(true);
+    try {
+      const [year, month, day] = editData.date.split('-').map(Number);
+      const [hours, minutes] = editData.start_hour.split(':').map(Number);
+      const start = new Date(year, month - 1, day, hours, minutes, 0);
+      const end = new Date(start.getTime() + editData.duration * 3600000);
+      await shiftsAPI.updateShift(shiftId, {
+        location_id: editData.location_id,
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        required_count: editData.required_count,
+      });
+      setEditingShift(null);
+      await loadShifts();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore nel salvataggio');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteShift = async (shiftId) => {
+    if (!confirm('Eliminare questo turno? L\'operazione non è reversibile.')) return;
+    try {
+      await shiftsAPI.deleteShift(shiftId);
+      await loadShifts();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Errore nell\'eliminazione');
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -190,7 +243,7 @@ function ShiftsSection({ locations }) {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Volontari richiesti</label>
+              <label className="block text-sm font-semibold mb-1">Volontari minimi</label>
               <input
                 type="number"
                 name="required_count"
@@ -243,28 +296,13 @@ function ShiftsSection({ locations }) {
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold text-gray-800">📋 Turni della settimana</h2>
           <div className="flex items-center gap-2">
-            <button
-              onClick={prevWeek}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
-            >
-              ‹
-            </button>
+            <button onClick={prevWeek} className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold">‹</button>
             <span className="text-sm font-medium text-gray-700 min-w-[160px] text-center">
               {fmtShortDate(weekStart)} – {fmtShortDate(weekEnd)}
             </span>
-            <button
-              onClick={nextWeek}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold"
-            >
-              ›
-            </button>
+            <button onClick={nextWeek} className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold">›</button>
             {!isCurrentWeek && (
-              <button
-                onClick={goCurrentWeek}
-                className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium ml-1"
-              >
-                Questa settimana
-              </button>
+              <button onClick={goCurrentWeek} className="text-xs px-2 py-1 rounded-md bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium ml-1">Questa settimana</button>
             )}
           </div>
         </div>
@@ -279,22 +317,50 @@ function ShiftsSection({ locations }) {
               const isEmpty = shift.assigned_count === 0;
               const covered = shift.assigned_count >= shift.required_count;
               const partial = !isEmpty && !covered;
-              const cardCls = covered
-                ? 'border-green-200 bg-green-50'
-                : partial
-                ? 'border-yellow-200 bg-yellow-50'
-                : 'border-red-200 bg-red-50';
-              const badgeCls = covered
-                ? 'bg-green-200 text-green-800'
-                : partial
-                ? 'bg-yellow-200 text-yellow-800'
-                : 'bg-red-200 text-red-800';
+              const cardCls = covered ? 'border-green-200 bg-green-50' : partial ? 'border-yellow-200 bg-yellow-50' : 'border-red-200 bg-red-50';
+              const badgeCls = covered ? 'bg-green-200 text-green-800' : partial ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800';
               const assignedUsers = shift.assigned_users || [];
+
+              if (editingShift === shift.id) {
+                return (
+                  <div key={shift.id} className="border border-indigo-300 bg-indigo-50 rounded-lg p-3">
+                    <p className="text-xs font-semibold text-indigo-700 mb-2">✏️ Modifica turno</p>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="col-span-2">
+                        <label className="text-xs font-semibold text-gray-500">Location</label>
+                        <select name="location_id" value={editData.location_id} onChange={handleEditChange} className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                          {locations.map((l) => (<option key={l.id} value={l.id}>{l.name}</option>))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500">Data</label>
+                        <input type="date" name="date" value={editData.date} onChange={handleEditChange} className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500">Ora inizio</label>
+                        <input type="time" name="start_hour" value={editData.start_hour} onChange={handleEditChange} className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500">Durata (ore)</label>
+                        <input type="number" name="duration" min="0.5" step="0.5" value={editData.duration} onChange={handleEditChange} className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500">Vol. minimi</label>
+                        <input type="number" name="required_count" min="1" value={editData.required_count} onChange={handleEditChange} className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleEditSave(shift.id)} disabled={savingEdit} className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded hover:bg-indigo-700 disabled:opacity-50">
+                        {savingEdit ? 'Salvataggio...' : '✓ Salva'}
+                      </button>
+                      <button onClick={() => setEditingShift(null)} className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-semibold rounded hover:bg-gray-300">Annulla</button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <div
-                  key={shift.id}
-                  className={`border rounded-lg p-3 flex justify-between items-start ${cardCls}`}
-                >
+                <div key={shift.id} className={`border rounded-lg p-3 flex justify-between items-start ${cardCls}`}>
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-semibold text-sm text-gray-900">{shift.location_name}</span>
@@ -303,9 +369,11 @@ function ShiftsSection({ locations }) {
                       </span>
                     </div>
                     <p className="text-gray-500 text-xs">{fmtDay(shift.start_time)} · {fmt(shift.start_time)}–{fmt(shift.end_time)}</p>
-                    {assignedUsers.length > 0 && (
-                      <p className="text-gray-400 text-xs mt-0.5">👤 {assignedUsers.join(', ')}</p>
-                    )}
+                    {assignedUsers.length > 0 && (<p className="text-gray-400 text-xs mt-0.5">👤 {assignedUsers.join(', ')}</p>)}
+                  </div>
+                  <div className="flex gap-1 ml-2 flex-shrink-0">
+                    <button onClick={() => startEditShift(shift)} className="p-1.5 rounded bg-white border border-gray-200 hover:bg-indigo-50 hover:border-indigo-300 text-gray-500 hover:text-indigo-600 transition-colors" title="Modifica">✏️</button>
+                    <button onClick={() => handleDeleteShift(shift.id)} className="p-1.5 rounded bg-white border border-gray-200 hover:bg-red-50 hover:border-red-300 text-gray-500 hover:text-red-600 transition-colors" title="Elimina">🗑️</button>
                   </div>
                 </div>
               );
@@ -377,10 +445,7 @@ function UsersSection() {
                   </td>
                   <td className="py-2">
                     {u.id !== currentUser.id ? (
-                      <button
-                        onClick={() => toggleRole(u)}
-                        className="text-xs text-indigo-600 hover:underline"
-                      >
+                      <button onClick={() => toggleRole(u)} className="text-xs text-indigo-600 hover:underline">
                         {u.role === 'admin' ? '→ Volontario' : '→ Admin'}
                       </button>
                     ) : (
@@ -436,14 +501,56 @@ function StatsSection() {
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <h2 className="text-xl font-bold mb-4">📊 Statistiche prenotazioni</h2>
-
       <div className="flex gap-3 mb-4 flex-wrap">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Anno</label>
-          <select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          <select value={year} onChange={(e) => setYear(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Tutti</option>
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Mese</label>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">Tutti</option>
+            {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+          </select>
+        </div>
+      </div>
+      {loading ? (
+        <p className="text-gray-400">Caricamento...</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-gray-500">
+                <th className="pb-2 pr-4">#</th>
+                <th className="pb-2 pr-4">Volontario</th>
+                <th className="pb-2 pr-4 text-center">Prenotazioni</th>
+                <th className="pb-2 pr-4 text-center">Attive</th>
+                <th className="pb-2 pr-4 text-center">Annullate</th>
+                <th className="pb-2 text-center">Ore totali</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.map((s, i) => (
+                <tr key={s.id} className={`border-b hover:bg-gray-50 ${s.total_bookings === 0 ? 'text-gray-400' : ''}`}>
+                  <td className="py-2 pr-4 text-gray-400">{i + 1}</td>
+                  <td className="py-2 pr-4"><div className="font-medium">{s.name}</div><div className="text-xs text-gray-400">{s.email}</div></td>
+                  <td className="py-2 pr-4 text-center font-semibold">{s.total_bookings}</td>
+                  <td className="py-2 pr-4 text-center"><span className="text-green-600 font-medium">{s.active_bookings}</span></td>
+                  <td className="py-2 pr-4 text-center"><span className="text-red-500">{s.cancelled_bookings}</span></td>
+                  <td className="py-2 text-center text-indigo-600 font-medium">{s.total_hours}h</td>
+                </tr>
+              ))}
+              {stats.length === 0 && (<tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato disponibile</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="">Tutti</option>
             {years.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -506,7 +613,7 @@ function StatsSection() {
   );
 }
 
-// ─── Sezione: Locations ─────────────────────────────────────────────────────
+// ─── Sezione: Locations ───────────────────────────────────────────────────────
 function LocationsSection() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -642,7 +749,7 @@ function LocationsSection() {
   );
 }
 
-// ─── AdminPage principale ────────────────────────────────────────────────────
+// ─── AdminPage principale ─────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
