@@ -20,7 +20,7 @@ export const authAPI = {
 
 export const shiftsAPI = {
   getShifts: (params = {}) => api.get('/shifts', { params }),
-    updateShift: (id, data) => api.put(`/shifts/${id}`, data),
+  updateShift: (id, data) => api.put(`/shifts/${id}`, data),
   createShift: (shiftData) => api.post('/shifts', shiftData),
   deleteShift: (id) => api.delete(`/shifts/${id}`),
 };
@@ -43,6 +43,7 @@ export const adminAPI = {
   updateUserRole: (id, role) => api.put(`/admin/users/${id}/role`, { role }),
   resetUserPassword: (id, new_password) => api.put(`/admin/users/${id}/password`, { new_password }),
   getStats: (params = {}) => api.get('/admin/stats', { params }),
+  fixFutureShifts: () => api.post('/admin/fix-shifts'),
 };
 
 export default api;
