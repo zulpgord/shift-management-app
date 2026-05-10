@@ -18,15 +18,58 @@ function LeilaLogo() {
   );
 }
 
+// ── Helper: colore in base allo stato del turno ────────────────────────────────────────────────
+function getShiftColors(shift, isMyShift) {
+  if (isMyShift) return {
+    cell: 'bg-blue-100 text-blue-800',
+    card: 'border-blue-200 bg-blue-50',
+    badge: 'bg-blue-200 text-blue-800',
+    dot: 'bg-blue-300',
+  };
+  if (shift.assigned_count === 0) return {
+    cell: 'bg-red-100 text-red-800',
+    card: 'border-red-200 bg-red-50',
+    badge: 'bg-red-200 text-red-800',
+    dot: 'bg-red-400',
+  };
+  if (shift.assigned_count < shift.required_count) return {
+    cell: 'bg-yellow-100 text-yellow-800',
+    card: 'border-yellow-200 bg-yellow-50',
+    badge: 'bg-yellow-200 text-yellow-800',
+    dot: 'bg-yellow-400',
+  };
+  return {
+    cell: 'bg-green-100 text-green-800',
+    card: 'border-green-200 bg-green-50',
+    badge: 'bg-green-200 text-green-800',
+    dot: 'bg-green-400',
+  };
+}
+
 function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   if (!shift) return null;
   const fmt = (dt) => new Date(dt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
   const isAssigned = !!myAssignment;
-  const covered = shift.assigned_count >= shift.required_count;
+  const fullyC = shift.assigned_count >= shift.required_count;
+  const partial = shift.assigned_count > 0 && shift.assigned_count < shift.required_count;
+  const empty = shift.assigned_count === 0;
   const assignedUsers = shift.assigned_users || [];
   const [isBooking, setIsBooking] = useState(false);
+
+  const statusLabel = isAssigned ? '✓ Sei registrato'
+    : fullyC ? 'Coperto'
+    : partial ? 'Parzialmente coperto'
+    : 'Non coperto';
+  const statusColor = isAssigned ? 'bg-blue-100 text-blue-800'
+    : fullyC ? 'bg-green-100 text-green-800'
+    : partial ? 'bg-yellow-100 text-yellow-800'
+    : 'bg-red-100 text-red-800';
+  const countColor = isAssigned ? 'text-blue-700'
+    : fullyC ? 'text-green-700'
+    : partial ? 'text-yellow-700'
+    : 'text-red-600';
 
   return (
     <div
@@ -53,11 +96,11 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-base">👥</span>
-            <span className={`text-sm font-semibold ${covered ? 'text-green-700' : 'text-red-600'}`}>
+            <span className={`text-sm font-semibold ${countColor}`}>
               {shift.assigned_count} / {shift.required_count} volontari
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              {covered ? 'Coperto' : 'Non coperto'}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor}`}>
+              {statusLabel}
             </span>
           </div>
         </div>
@@ -78,7 +121,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
         )}
         {isAssigned ? (
           <div className="space-y-2">
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-center text-indigo-700 text-sm font-medium">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-center text-blue-700 text-sm font-medium">
               ✓ Sei registrato a questo turno
             </div>
             <button
@@ -277,7 +320,6 @@ export default function DashboardPage() {
 
         {/* ── Stats cards ── */}
         <div className="grid grid-cols-2 gap-4 mb-6">
-          {/* Card 1: Copertura del mese */}
           <div className={`p-4 rounded-xl shadow-sm border ${coverageColor.bg} ${coverageColor.border}`}>
             <p className={`text-sm font-medium ${coverageColor.text}`}>Copertura del mese</p>
             <p className={`text-3xl font-bold ${coverageColor.num}`}>{coveragePercent}%</p>
@@ -285,7 +327,6 @@ export default function DashboardPage() {
               {coveredCount}/{monthShifts.length} turni coperti
             </p>
           </div>
-          {/* Card 2: Le mie prenotazioni */}
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm">
             <p className="text-sm font-medium text-blue-700">Le mie prenotazioni</p>
             <p className="text-3xl font-bold text-blue-600">{myMonthBookings.length}</p>
@@ -332,16 +373,14 @@ export default function DashboardPage() {
                             <p className={`text-xs font-semibold mb-1 px-0.5 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
                             <div className="space-y-0.5">
                               {dayShifts.map(shift => {
-                                const covered = shift.assigned_count >= shift.required_count;
                                 const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
+                                const colors = getShiftColors(shift, isMyShift);
                                 const assignedUsers = shift.assigned_users || [];
                                 return (
                                   <div
                                     key={shift.id}
                                     onClick={() => setSelectedShift(shift)}
-                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${
-                                      isMyShift ? 'bg-blue-100 text-blue-800' : covered ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`}
+                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${colors.cell}`}
                                   >
                                     <div className="truncate font-semibold">{shift.location_name}</div>
                                     <div className="text-xs opacity-75">{fmt(shift.start_time)}–{fmt(shift.end_time)}</div>
@@ -361,11 +400,13 @@ export default function DashboardPage() {
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-blue-300"></div><span className="text-xs text-gray-500">I miei turni</span></div>
-                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Coperto</span></div>
-                  <div className="flex items-center gap-2"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Non coperto</span></div>
-                  <div className="flex items-center gap-2 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
+                {/* Legend */}
+                <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-300"></div><span className="text-xs text-gray-500">I miei turni</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Copertura completa</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-yellow-400"></div><span className="text-xs text-gray-500">Parzialmente coperto</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Nessun volontario</span></div>
+                  <div className="flex items-center gap-1.5 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
             )}
@@ -383,27 +424,19 @@ export default function DashboardPage() {
                     {monthShifts.map(shift => {
                       const isMyShift = userAssignments.some(a => a.shift_id === shift.id && a.status === 'assigned');
                       const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
-                      const covered = shift.assigned_count >= shift.required_count;
+                      const colors = getShiftColors(shift, isMyShift);
                       const assignedUsers = shift.assigned_users || [];
+                      const statusLabel = shift.assigned_count === 0 ? 'Nessun volontario'
+                        : shift.assigned_count < shift.required_count ? `${shift.assigned_count}/${shift.required_count} volontari`
+                        : `${shift.assigned_count}/${shift.required_count} ✓`;
                       return (
-                        <div
-                          key={shift.id}
-                          className={`border rounded-xl p-4 ${
-                            isMyShift
-                              ? 'border-blue-200 bg-blue-50'
-                              : covered
-                              ? 'border-green-200 bg-green-50'
-                              : 'border-red-200 bg-red-50'
-                          }`}
-                        >
+                        <div key={shift.id} className={`border rounded-xl p-4 ${colors.card}`}>
                           <div className="flex justify-between items-start">
                             <div>
-                              <div className="flex items-center gap-2 mb-1">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
                                 <span className="font-semibold text-gray-900">{shift.location_name}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                  isMyShift ? 'bg-blue-200 text-blue-800' : covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                                }`}>
-                                  {shift.assigned_count}/{shift.required_count} volontari
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.badge}`}>
+                                  {statusLabel}
                                 </span>
                                 {isMyShift && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-600 text-white">✓ Mio</span>}
                               </div>
