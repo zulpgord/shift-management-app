@@ -276,22 +276,30 @@ function ShiftsSection({ locations }) {
         ) : (
           <div className="space-y-2">
             {weekShifts.map(shift => {
+              const isEmpty = shift.assigned_count === 0;
               const covered = shift.assigned_count >= shift.required_count;
+              const partial = !isEmpty && !covered;
+              const cardCls = covered
+                ? 'border-green-200 bg-green-50'
+                : partial
+                ? 'border-yellow-200 bg-yellow-50'
+                : 'border-red-200 bg-red-50';
+              const badgeCls = covered
+                ? 'bg-green-200 text-green-800'
+                : partial
+                ? 'bg-yellow-200 text-yellow-800'
+                : 'bg-red-200 text-red-800';
               const assignedUsers = shift.assigned_users || [];
               return (
                 <div
                   key={shift.id}
-                  className={`border rounded-lg p-3 flex justify-between items-start ${
-                    covered ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-                  }`}
+                  className={`border rounded-lg p-3 flex justify-between items-start ${cardCls}`}
                 >
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="font-semibold text-sm text-gray-900">{shift.location_name}</span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                        covered ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'
-                      }`}>
-                        {shift.assigned_count}/{shift.required_count}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badgeCls}`}>
+                        {isEmpty ? 'Nessun volontario' : covered ? `${shift.assigned_count}/${shift.required_count} ✓` : `${shift.assigned_count}/${shift.required_count}`}
                       </span>
                     </div>
                     <p className="text-gray-500 text-xs">{fmtDay(shift.start_time)} · {fmt(shift.start_time)}–{fmt(shift.end_time)}</p>
@@ -309,7 +317,7 @@ function ShiftsSection({ locations }) {
   );
 }
 
-// ─── Sezione: Utenti ──────────────────────────────────────────────────────────
+// ─── Sezione: Utenti ────────────────────────────────────────────────────────
 function UsersSection() {
   const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
   const [users, setUsers] = useState([]);
@@ -389,7 +397,7 @@ function UsersSection() {
   );
 }
 
-// ─── Sezione: Statistiche ─────────────────────────────────────────────────────
+// ─── Sezione: Statistiche ───────────────────────────────────────────────────
 function StatsSection() {
   const [stats, setStats] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -498,7 +506,7 @@ function StatsSection() {
   );
 }
 
-// ─── Sezione: Locations ───────────────────────────────────────────────────────
+// ─── Sezione: Locations ─────────────────────────────────────────────────────
 function LocationsSection() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -634,7 +642,7 @@ function LocationsSection() {
   );
 }
 
-// ─── AdminPage principale ─────────────────────────────────────────────────────
+// ─── AdminPage principale ────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
   const user = JSON.parse(localStorage.getItem('user') || '{}');
