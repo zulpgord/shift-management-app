@@ -18,7 +18,7 @@ async function initializeDatabase() {
         email VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
-        role VARCHAR(50) NOT NULL DEFAULT 'volunteer', -- 'volunteer' or 'admin'
+        role VARCHAR(50) NOT NULL DEFAULT 'volunteer',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -49,7 +49,7 @@ async function initializeDatabase() {
         shift_id INTEGER REFERENCES shifts(id) ON DELETE CASCADE,
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         hours_volunteered DECIMAL(4,2) DEFAULT NULL,
-        status VARCHAR(50) DEFAULT 'assigned', -- 'assigned', 'completed', 'cancelled'
+        status VARCHAR(50) DEFAULT 'assigned',
         assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(shift_id, user_id)
@@ -59,7 +59,7 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS notifications (
         id SERIAL PRIMARY KEY,
         recipient_id INTEGER REFERENCES users(id),
-        type VARCHAR(50) NOT NULL, -- 'assignment', 'reminder', 'alert'
+        type VARCHAR(50) NOT NULL,
         subject VARCHAR(255),
         message TEXT,
         email_sent BOOLEAN DEFAULT FALSE,
@@ -71,10 +71,13 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_assignments_user ON assignments(user_id);
       CREATE INDEX IF NOT EXISTS idx_assignments_shift ON assignments(shift_id);
       CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id);
-
-    -- Migrations: add columns safely if they don't exist
-    ALTER TABLE shifts ADD COLUMN IF NOT EXISTS min_participants INTEGER DEFAULT 1;
     `);
+
+    // Migration: add cancelled column if missing
+    await client.query(`
+      ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT false;
+    `);
+
     console.log('✅ Database initialized');
   } catch (err) {
     console.error('Error initializing database:', err);
