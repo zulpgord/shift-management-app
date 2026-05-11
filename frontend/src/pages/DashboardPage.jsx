@@ -39,16 +39,16 @@ function getShiftColors(shift, isMyShift) {
     dot: 'bg-red-400',
   };
   if (shift.assigned_count < shift.required_count) return {
-    cell: 'bg-yellow-100 text-yellow-800',
-    card: 'border-yellow-200 bg-yellow-50',
-    badge: 'bg-yellow-200 text-yellow-800',
-    dot: 'bg-yellow-400',
+    cell: 'bg-green-100 text-green-700',
+    card: 'border-green-100 bg-green-50',
+    badge: 'bg-green-100 text-green-700',
+    dot: 'bg-green-200',
   };
   return {
-    cell: 'bg-green-100 text-green-800',
-    card: 'border-green-200 bg-green-50',
-    badge: 'bg-green-200 text-green-800',
-    dot: 'bg-green-400',
+    cell: 'bg-green-300 text-green-900',
+    card: 'border-green-300 bg-green-100',
+    badge: 'bg-green-300 text-green-900',
+    dot: 'bg-green-500',
   };
 }
 
@@ -69,8 +69,8 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
     : 'Non coperto';
   const statusColor = shift.cancelled ? 'bg-yellow-100 text-yellow-700'
     : isAssigned ? 'bg-blue-100 text-blue-800'
-    : fullyC ? 'bg-green-100 text-green-800'
-    : partial ? 'bg-yellow-100 text-yellow-800'
+    : fullyC ? 'bg-green-300 text-green-900'
+    : partial ? 'bg-green-100 text-green-700'
     : 'bg-red-100 text-red-800';
   const countColor = shift.cancelled ? 'text-yellow-600'
     : isAssigned ? 'text-blue-700'
@@ -359,7 +359,7 @@ export default function DashboardPage() {
             {viewMode === 'calendario' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="grid grid-cols-7 mb-1">
-                  {DAYS_IT.map(d => (
+                   {DAYS_IT.map(d => (
                     <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
                   ))}
                 </div>
@@ -396,8 +396,8 @@ export default function DashboardPage() {
                                       <div className="text-xs opacity-75">Annullato</div>
                                     ) : assignedUsers.length > 0 && (
                                       <div className="truncate opacity-75 mt-0.5">
-                                        {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
-                                        {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
+                                       {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
+                                       {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
                                       </div>
                                     )}
                                   </div>
@@ -413,14 +413,14 @@ export default function DashboardPage() {
                 {/* Legend */}
                 <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-blue-300"></div><span className="text-xs text-gray-500">I miei turni</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Copertura completa</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-yellow-400"></div><span className="text-xs text-gray-500">Parzialmente coperto</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-500"></div><span className="text-xs text-gray-500">Copertura completa</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-200"></div><span className="text-xs text-gray-500">Parzialmente coperto</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Nessun volontario</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-yellow-200 border border-yellow-300"></div><span className="text-xs text-gray-500">⚠ Annullato</span></div>
                   <div className="flex items-center gap-1.5 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
-            )}
+             )}
 
             {/* ── Lista ── */}
             {viewMode === 'lista' && (
