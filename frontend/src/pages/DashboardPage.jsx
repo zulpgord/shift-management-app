@@ -18,8 +18,14 @@ function LeilaLogo() {
   );
 }
 
-// ── Helper: colore in base allo stato del turno ────────────────────────────────────────────────
+// ── Helper: colore in base allo stato del turno ──────────────────────────────
 function getShiftColors(shift, isMyShift) {
+  if (shift.cancelled) return {
+    cell: 'bg-yellow-100 text-yellow-600',
+    card: 'border-yellow-200 bg-yellow-50 opacity-75',
+    badge: 'bg-yellow-200 text-yellow-700',
+    dot: 'bg-yellow-300',
+  };
   if (isMyShift) return {
     cell: 'bg-blue-100 text-blue-800',
     card: 'border-blue-200 bg-blue-50',
@@ -54,33 +60,35 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const isAssigned = !!myAssignment;
   const fullyC = shift.assigned_count >= shift.required_count;
   const partial = shift.assigned_count > 0 && shift.assigned_count < shift.required_count;
-  const empty = shift.assigned_count === 0;
   const assignedUsers = shift.assigned_users || [];
   const [isBooking, setIsBooking] = useState(false);
-
-  const statusLabel = isAssigned ? '✓ Sei registrato'
+  const statusLabel = shift.cancelled ? 'Annullato'
+    : isAssigned ? '✓ Sei registrato'
     : fullyC ? 'Coperto'
     : partial ? 'Parzialmente coperto'
     : 'Non coperto';
-  const statusColor = isAssigned ? 'bg-blue-100 text-blue-800'
+  const statusColor = shift.cancelled ? 'bg-yellow-100 text-yellow-700'
+    : isAssigned ? 'bg-blue-100 text-blue-800'
     : fullyC ? 'bg-green-100 text-green-800'
     : partial ? 'bg-yellow-100 text-yellow-800'
     : 'bg-red-100 text-red-800';
-  const countColor = isAssigned ? 'text-blue-700'
+  const countColor = shift.cancelled ? 'text-yellow-600'
+    : isAssigned ? 'text-blue-700'
     : fullyC ? 'text-green-700'
     : partial ? 'text-yellow-700'
     : 'text-red-600';
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={onClose}
     >
-      <div
-        className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
+        {shift.cancelled && (
+          <div className="mb-3 px-3 py-2 bg-yellow-100 border border-yellow-200 rounded-lg text-yellow-700 text-sm font-medium text-center">
+            ⚠️ Questo turno è stato annullato
+          </div>
+        )}
         <div className="flex justify-between items-start mb-4">
           <h2 className="text-xl font-bold text-gray-900">{shift.location_name}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
@@ -119,7 +127,11 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
             </div>
           </div>
         )}
-        {isAssigned ? (
+        {shift.cancelled ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-center text-yellow-700 text-sm">
+            Questo turno è stato annullato dall'organizzazione.
+          </div>
+        ) : isAssigned ? (
           <div className="space-y-2">
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-center text-blue-700 text-sm font-medium">
               ✓ Sei registrato a questo turno
@@ -133,12 +145,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
           </div>
         ) : (
           <button
-            onClick={async () => {
-              setIsBooking(true);
-              await onAssign(shift.id);
-              setIsBooking(false);
-              onClose();
-            }}
+            onClick={async () => { setIsBooking(true); await onAssign(shift.id); setIsBooking(false); onClose(); }}
             disabled={isBooking}
             className={`w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${isBooking ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-700'}`}
           >
@@ -225,38 +232,39 @@ export default function DashboardPage() {
   const nextMonth = () => setCalMonth(({ year, month }) => month === 11 ? { year: year + 1, month: 0 } : { year, month: month + 1 });
   const goToday = () => { const n = new Date(); setCalMonth({ year: n.getFullYear(), month: n.getMonth() }); };
 
-  // ── Derived values filtered to selected month ──────────────────────────────
+  // ── Derived values filtered to selected month ────────────────────────────
   const monthShifts = shifts.filter(s => {
     const d = new Date(s.start_time);
     return d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month;
   });
-
-  const coveredCount = monthShifts.filter(s => s.assigned_count >= s.required_count).length;
-  const coveragePercent = monthShifts.length > 0 ? Math.round(coveredCount / monthShifts.length * 100) : 0;
-
+  // Escludi annullati dal calcolo copertura
+  const activeMonthShifts = monthShifts.filter(s => !s.cancelled);
+  const coveredCount = activeMonthShifts.filter(s => s.assigned_count >= s.required_count).length;
+  const partiallyCoveredCount = activeMonthShifts.filter(s => s.assigned_count > 0 && s.assigned_count < s.required_count).length;
+  const coveragePercent = activeMonthShifts.length > 0
+    ? Math.round((coveredCount + partiallyCoveredCount) / activeMonthShifts.length * 100)
+    : 0;
   const myMonthBookings = userAssignments.filter(a => {
     if (a.status !== 'assigned') return false;
     const d = new Date(a.start_time);
     return d.getFullYear() === calMonth.year && d.getMonth() === calMonth.month;
   });
-
-  const coverageColor =
-    coveragePercent >= 80 ? { bg: 'bg-green-50', text: 'text-green-700', num: 'text-green-600', border: 'border-green-100' }
-    : coveragePercent >= 50 ? { bg: 'bg-yellow-50', text: 'text-yellow-700', num: 'text-yellow-600', border: 'border-yellow-100' }
+  const coverageColor = coveragePercent >= 80
+    ? { bg: 'bg-green-50', text: 'text-green-700', num: 'text-green-600', border: 'border-green-100' }
+    : coveragePercent >= 50
+    ? { bg: 'bg-yellow-50', text: 'text-yellow-700', num: 'text-yellow-600', border: 'border-yellow-100' }
     : { bg: 'bg-red-50', text: 'text-red-700', num: 'text-red-600', border: 'border-red-100' };
 
-  // ── Calendar grid ──────────────────────────────────────────────────────────
+  // ── Calendar grid ────────────────────────────────────────────────────────
   const daysInMonth = new Date(calMonth.year, calMonth.month + 1, 0).getDate();
   const rawFirstDay = new Date(calMonth.year, calMonth.month, 1).getDay();
   const firstDay = (rawFirstDay + 6) % 7;
-
   const shiftsByDay = {};
   monthShifts.forEach(shift => {
     const day = new Date(shift.start_time).getDate();
     if (!shiftsByDay[day]) shiftsByDay[day] = [];
     shiftsByDay[day].push(shift);
   });
-
   const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
   const cells = Array.from({ length: totalCells }, (_, i) => {
     const d = i - firstDay + 1;
@@ -278,16 +286,11 @@ export default function DashboardPage() {
       {toast && (
         <div
           className="fixed top-6 left-1/2 z-[100] px-6 py-3 rounded-xl shadow-xl font-semibold text-sm text-white"
-          style={{
-            transform: 'translateX(-50%)',
-            whiteSpace: 'nowrap',
-            backgroundColor: toast.startsWith('❌') ? '#dc2626' : '#16a34a',
-          }}
+          style={{ transform: 'translateX(-50%)', whiteSpace: 'nowrap', backgroundColor: toast.startsWith('❌') ? '#dc2626' : '#16a34a' }}
         >
           {toast}
         </div>
       )}
-
       {/* Header */}
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
@@ -307,7 +310,6 @@ export default function DashboardPage() {
       </header>
 
       <main className="max-w-6xl mx-auto p-6">
-
         {/* ── Month navigation (shared) ── */}
         <div className="flex items-center justify-between mb-5">
           <button onClick={prevMonth} className="w-9 h-9 flex items-center justify-center rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-xl font-bold shadow-sm">‹</button>
@@ -324,7 +326,7 @@ export default function DashboardPage() {
             <p className={`text-sm font-medium ${coverageColor.text}`}>Copertura del mese</p>
             <p className={`text-3xl font-bold ${coverageColor.num}`}>{coveragePercent}%</p>
             <p className={`text-xs mt-1 ${coverageColor.text} opacity-80`}>
-              {coveredCount}/{monthShifts.length} turni coperti
+              {coveredCount + partiallyCoveredCount}/{activeMonthShifts.length} turni coperti o parziali
             </p>
           </div>
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm">
@@ -367,7 +369,10 @@ export default function DashboardPage() {
                     const today = new Date();
                     const isToday = day && today.getDate() === day && today.getMonth() === calMonth.month && today.getFullYear() === calMonth.year;
                     return (
-                      <div key={idx} className={`min-h-[90px] rounded-lg p-1 ${day ? 'border border-gray-100 bg-gray-50' : ''} ${isToday ? 'border-indigo-300 bg-indigo-50' : ''}`}>
+                      <div
+                        key={idx}
+                        className={`min-h-[90px] rounded-lg p-1 ${day ? 'border border-gray-100 bg-gray-50' : ''} ${isToday ? 'border-indigo-300 bg-indigo-50' : ''}`}
+                      >
                         {day && (
                           <>
                             <p className={`text-xs font-semibold mb-1 px-0.5 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
@@ -380,11 +385,16 @@ export default function DashboardPage() {
                                   <div
                                     key={shift.id}
                                     onClick={() => setSelectedShift(shift)}
-                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${colors.cell}`}
+                                    className={`text-xs px-1 py-0.5 rounded font-medium cursor-pointer hover:opacity-80 transition-opacity ${colors.cell} ${shift.cancelled ? 'opacity-70' : ''}`}
                                   >
-                                    <div className="truncate font-semibold">{shift.location_name}</div>
+                                    <div className="truncate font-semibold">
+                                      {shift.cancelled && <span className="mr-0.5">⚠</span>}
+                                      {shift.location_name}
+                                    </div>
                                     <div className="text-xs opacity-75">{fmt(shift.start_time)}–{fmt(shift.end_time)}</div>
-                                    {assignedUsers.length > 0 && (
+                                    {shift.cancelled ? (
+                                      <div className="text-xs opacity-75">Annullato</div>
+                                    ) : assignedUsers.length > 0 && (
                                       <div className="truncate opacity-75 mt-0.5">
                                         {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
                                         {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
@@ -406,6 +416,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-400"></div><span className="text-xs text-gray-500">Copertura completa</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-yellow-400"></div><span className="text-xs text-gray-500">Parzialmente coperto</span></div>
                   <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-400"></div><span className="text-xs text-gray-500">Nessun volontario</span></div>
+                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-yellow-200 border border-yellow-300"></div><span className="text-xs text-gray-500">⚠ Annullato</span></div>
                   <div className="flex items-center gap-1.5 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
@@ -426,34 +437,44 @@ export default function DashboardPage() {
                       const myAssignment = userAssignments.find(a => a.shift_id === shift.id && a.status === 'assigned');
                       const colors = getShiftColors(shift, isMyShift);
                       const assignedUsers = shift.assigned_users || [];
-                      const statusLabel = shift.assigned_count === 0 ? 'Nessun volontario'
-                        : shift.assigned_count < shift.required_count ? `${shift.assigned_count}/${shift.required_count} volontari`
+                      const statusLabel = shift.cancelled
+                        ? 'Annullato'
+                        : shift.assigned_count === 0
+                        ? 'Nessun volontario'
+                        : shift.assigned_count < shift.required_count
+                        ? `${shift.assigned_count}/${shift.required_count} volontari`
                         : `${shift.assigned_count}/${shift.required_count} ✓`;
                       return (
                         <div key={shift.id} className={`border rounded-xl p-4 ${colors.card}`}>
                           <div className="flex justify-between items-start">
                             <div>
                               <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="font-semibold text-gray-900">{shift.location_name}</span>
+                                <span className={`font-semibold ${shift.cancelled ? 'text-gray-400' : 'text-gray-900'}`}>
+                                  {shift.location_name}
+                                </span>
                                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors.badge}`}>
                                   {statusLabel}
                                 </span>
-                                {isMyShift && <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-600 text-white">✓ Mio</span>}
+                                {isMyShift && !shift.cancelled && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-600 text-white">✓ Mio</span>
+                                )}
                               </div>
-                              <p className="text-gray-500 text-sm">{fmtDate(shift.start_time)}</p>
-                              <p className="text-gray-500 text-sm">{fmt(shift.start_time)} — {fmt(shift.end_time)}</p>
-                              {assignedUsers.length > 0 && (
+                              <p className={`text-sm ${shift.cancelled ? 'text-gray-400' : 'text-gray-500'}`}>{fmtDate(shift.start_time)}</p>
+                              <p className={`text-sm ${shift.cancelled ? 'text-gray-400' : 'text-gray-500'}`}>{fmt(shift.start_time)} — {fmt(shift.end_time)}</p>
+                              {assignedUsers.length > 0 && !shift.cancelled && (
                                 <p className="text-gray-400 text-xs mt-1">👤 {assignedUsers.join(', ')}</p>
                               )}
                             </div>
-                            <button
-                              onClick={() => isMyShift ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
-                              className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${
-                                isMyShift ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                              }`}
-                            >
-                              {isMyShift ? '✓ Prenotato' : '+ Partecipa'}
-                            </button>
+                            {!shift.cancelled && (
+                              <button
+                                onClick={() => isMyShift ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
+                                className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${
+                                  isMyShift ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                }`}
+                              >
+                                {isMyShift ? '✓ Prenotato' : '+ Partecipa'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
