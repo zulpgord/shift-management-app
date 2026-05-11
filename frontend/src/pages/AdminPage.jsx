@@ -5,7 +5,7 @@ import { shiftsAPI, locationsAPI, adminAPI } from '../services/api';
 // ── Helper: get Monday of a given date's week ────────────────────────────────
 function getWeekStart(date) {
   const d = new Date(date);
-  const day = d.getDay(); // 0 = Sunday
+  const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
   d.setHours(0, 0, 0, 0);
@@ -114,6 +114,17 @@ function ShiftsSection({ locations }) {
       alert(err.response?.data?.error || 'Errore nel salvataggio');
     } finally {
       setSavingEdit(false);
+    }
+  };
+
+  const handleCancelShift = async (shift) => {
+    const action = shift.cancelled ? 'riattivare' : 'annullare';
+    if (!confirm(`Vuoi ${action} il turno del ${fmtDay(shift.start_time)} a ${shift.location_name}?`)) return;
+    try {
+      await shiftsAPI.cancelShift(shift.id);
+      await loadShifts();
+    } catch (err) {
+      alert(err.response?.data?.error || `Errore nell'${action}`);
     }
   };
 
@@ -335,6 +346,14 @@ function ShiftsSection({ locations }) {
           </div>
         </div>
 
+        {/* Legenda colori */}
+        <div className="flex gap-3 mb-3 flex-wrap text-xs text-gray-500">
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-300 inline-block"></span>Nessun volontario</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-200 inline-block"></span>1 volontario</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block"></span>Più volontari</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-yellow-300 inline-block"></span>Annullato</span>
+        </div>
+
         {shiftsLoading ? (
           <p className="text-gray-400 text-sm">Caricamento...</p>
         ) : weekShifts.length === 0 ? (
@@ -342,19 +361,23 @@ function ShiftsSection({ locations }) {
         ) : (
           <div className="space-y-2">
             {weekShifts.map(shift => {
-              const isEmpty = shift.assigned_count === 0;
-              const covered = shift.assigned_count >= shift.required_count;
-              const partial = !isEmpty && !covered;
-              const cardCls = covered
+              const isCancelled = !!shift.cancelled;
+              const n = shift.assigned_count;
+              // Colour based on: cancelled > count
+              const cardCls = isCancelled
+                ? 'border-yellow-300 bg-yellow-50 opacity-80'
+                : n === 0
+                ? 'border-red-200 bg-red-50'
+                : n === 1
                 ? 'border-green-200 bg-green-50'
-                : partial
-                ? 'border-yellow-200 bg-yellow-50'
-                : 'border-red-200 bg-red-50';
-              const badgeCls = covered
-                ? 'bg-green-200 text-green-800'
-                : partial
+                : 'border-green-400 bg-green-100';
+              const badgeCls = isCancelled
                 ? 'bg-yellow-200 text-yellow-800'
-                : 'bg-red-200 text-red-800';
+                : n === 0
+                ? 'bg-red-200 text-red-800'
+                : n === 1
+                ? 'bg-green-100 text-green-800'
+                : 'bg-green-300 text-green-900';
               const assignedUsers = shift.assigned_users || [];
 
               if (editingShift === shift.id) {
@@ -445,23 +468,40 @@ function ShiftsSection({ locations }) {
                 >
                   <div>
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="font-semibold text-sm text-gray-900">{shift.location_name}</span>
+                      <span className={`font-semibold text-sm ${isCancelled ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                        {shift.location_name}
+                      </span>
                       <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${badgeCls}`}>
-                        {isEmpty ? 'Nessun volontario' : covered ? `${shift.assigned_count}/${shift.required_count} ✓` : `${shift.assigned_count}/${shift.required_count}`}
+                        {isCancelled ? 'Annullato' : n === 0 ? 'Nessun volontario' : `${n}/${shift.required_count} ✓`}
                       </span>
                     </div>
-                    <p className="text-gray-500 text-xs">{fmtDay(shift.start_time)} · {fmt(shift.start_time)}–{fmt(shift.end_time)}</p>
+                    <p className={`text-xs ${isCancelled ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {fmtDay(shift.start_time)} · {fmt(shift.start_time)}–{fmt(shift.end_time)}
+                    </p>
                     {assignedUsers.length > 0 && (
                       <p className="text-gray-400 text-xs mt-0.5">👤 {assignedUsers.join(', ')}</p>
                     )}
                   </div>
                   <div className="flex gap-1 ml-2 flex-shrink-0">
+                    {!isCancelled && (
+                      <button
+                        onClick={() => startEditShift(shift)}
+                        className="p-1.5 rounded bg-white border border-gray-200 hover:bg-indigo-50 hover:border-indigo-300 text-gray-500 hover:text-indigo-600 transition-colors"
+                        title="Modifica"
+                      >
+                        ✏️
+                      </button>
+                    )}
                     <button
-                      onClick={() => startEditShift(shift)}
-                      className="p-1.5 rounded bg-white border border-gray-200 hover:bg-indigo-50 hover:border-indigo-300 text-gray-500 hover:text-indigo-600 transition-colors"
-                      title="Modifica"
+                      onClick={() => handleCancelShift(shift)}
+                      className={`p-1.5 rounded bg-white border border-gray-200 transition-colors ${
+                        isCancelled
+                          ? 'hover:bg-green-50 hover:border-green-300 text-gray-500 hover:text-green-600'
+                          : 'hover:bg-yellow-50 hover:border-yellow-300 text-gray-500 hover:text-yellow-600'
+                      }`}
+                      title={isCancelled ? 'Riattiva' : 'Annulla turno'}
                     >
-                      ✏️
+                      {isCancelled ? '↩️' : '🚫'}
                     </button>
                     <button
                       onClick={() => handleDeleteShift(shift.id)}
@@ -564,6 +604,7 @@ function UsersSection() {
 // ─── Sezione: Statistiche ─────────────────────────────────────────────────────
 function StatsSection() {
   const [stats, setStats] = useState([]);
+  const [shiftStats, setShiftStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
@@ -584,8 +625,12 @@ function StatsSection() {
       const params = {};
       if (year) params.year = year;
       if (month) params.month = month;
-      const res = await adminAPI.getStats(params);
-      setStats(res.data);
+      const [resUsers, resShifts] = await Promise.all([
+        adminAPI.getStats(params),
+        adminAPI.getShiftStats(params),
+      ]);
+      setStats(resUsers.data);
+      setShiftStats(resShifts.data);
     } catch {
       alert('Errore nel caricamento statistiche');
     } finally {
@@ -598,73 +643,104 @@ function StatsSection() {
   const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h2 className="text-xl font-bold mb-4">📊 Statistiche prenotazioni</h2>
-
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Anno</label>
-          <select
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Tutti</option>
-            {years.map((y) => <option key={y} value={y}>{y}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Mese</label>
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">Tutti</option>
-            {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+    <div className="space-y-4">
+      {/* Filtri */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-bold mb-4">📊 Statistiche</h2>
+        <div className="flex gap-3 flex-wrap">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Anno</label>
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Tutti</option>
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Mese</label>
+            <select
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Tutti</option>
+              {MONTHS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
       {loading ? (
-        <p className="text-gray-400">Caricamento...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b text-left text-gray-500">
-                <th className="pb-2 pr-4">#</th>
-                <th className="pb-2 pr-4">Volontario</th>
-                <th className="pb-2 pr-4 text-center">Prenotazioni</th>
-                <th className="pb-2 pr-4 text-center">Attive</th>
-                <th className="pb-2 pr-4 text-center">Annullate</th>
-                <th className="pb-2 text-center">Ore totali</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.map((s, i) => (
-                <tr key={s.id} className={`border-b hover:bg-gray-50 ${s.total_bookings === 0 ? 'text-gray-400' : ''}`}>
-                  <td className="py-2 pr-4 text-gray-400">{i + 1}</td>
-                  <td className="py-2 pr-4">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-xs text-gray-400">{s.email}</div>
-                  </td>
-                  <td className="py-2 pr-4 text-center font-semibold">{s.total_bookings}</td>
-                  <td className="py-2 pr-4 text-center">
-                    <span className="text-green-600 font-medium">{s.active_bookings}</span>
-                  </td>
-                  <td className="py-2 pr-4 text-center">
-                    <span className="text-red-500">{s.cancelled_bookings}</span>
-                  </td>
-                  <td className="py-2 text-center text-indigo-600 font-medium">{s.total_hours}h</td>
-                </tr>
-              ))}
-              {stats.length === 0 && (
-                <tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato disponibile</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="bg-white rounded-lg shadow p-6">
+          <p className="text-gray-400">Caricamento...</p>
         </div>
+      ) : (
+        <>
+          {/* Riepilogo turni */}
+          {shiftStats && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-sm font-bold text-gray-700 mb-3">📋 Riepilogo turni nel periodo</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-3 bg-gray-50 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-800">{shiftStats.total_shifts}</div>
+                  <div className="text-xs text-gray-500 mt-1">Turni totali</div>
+                </div>
+                <div className="text-center p-3 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-700">{shiftStats.active_shifts}</div>
+                  <div className="text-xs text-gray-500 mt-1">Turni attivi</div>
+                </div>
+                <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                  <div className="text-2xl font-bold text-yellow-700">{shiftStats.cancelled_shifts}</div>
+                  <div className="text-xs text-gray-500 mt-1">Turni annullati</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Statistiche per volontario */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-sm font-bold text-gray-700 mb-3">👤 Prenotazioni per volontario</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-gray-500">
+                    <th className="pb-2 pr-4">#</th>
+                    <th className="pb-2 pr-4">Volontario</th>
+                    <th className="pb-2 pr-4 text-center">Prenotazioni</th>
+                    <th className="pb-2 pr-4 text-center">Attive</th>
+                    <th className="pb-2 pr-4 text-center">Annullate</th>
+                    <th className="pb-2 text-center">Ore totali</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stats.map((s, i) => (
+                    <tr key={s.id} className={`border-b hover:bg-gray-50 ${s.total_bookings === 0 ? 'text-gray-400' : ''}`}>
+                      <td className="py-2 pr-4 text-gray-400">{i + 1}</td>
+                      <td className="py-2 pr-4">
+                        <div className="font-medium">{s.name}</div>
+                        <div className="text-xs text-gray-400">{s.email}</div>
+                      </td>
+                      <td className="py-2 pr-4 text-center font-semibold">{s.total_bookings}</td>
+                      <td className="py-2 pr-4 text-center">
+                        <span className="text-green-600 font-medium">{s.active_bookings}</span>
+                      </td>
+                      <td className="py-2 pr-4 text-center">
+                        <span className="text-red-500">{s.cancelled_bookings}</span>
+                      </td>
+                      <td className="py-2 text-center text-indigo-600 font-medium">{s.total_hours}h</td>
+                    </tr>
+                  ))}
+                  {stats.length === 0 && (
+                    <tr><td colSpan={6} className="py-4 text-center text-gray-400">Nessun dato disponibile</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
