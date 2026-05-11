@@ -145,7 +145,7 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
           </div>
         ) : (
           <button
-            onClick={async () => { setIsBooking(true); await onAssign(shift.id); setIsBooking(false); onClose(); }}
+            onClick={async () => { setIsBooking(true); try { await onAssign(shift.id); onClose(); } catch(e) { setIsBooking(false); } }}
             disabled={isBooking}
             className={`w-full bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors ${isBooking ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-700'}`}
           >
@@ -205,10 +205,11 @@ export default function DashboardPage() {
   const handleAssign = async (shiftId) => {
     try {
       await assignmentsAPI.assignShift(shiftId);
-      await loadShifts(true);
       showToast('✓ Prenotazione confermata!');
+      loadShifts(true); // refresh in background, no await
     } catch (err) {
       showToast('❌ ' + (err.response?.data?.error || 'Errore nella prenotazione'));
+      throw err; // re-throw so the modal stays open on error
     }
   };
 
@@ -359,7 +360,7 @@ export default function DashboardPage() {
             {viewMode === 'calendario' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <div className="grid grid-cols-7 mb-1">
-                   {DAYS_IT.map(d => (
+                  {DAYS_IT.map(d => (
                     <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
                   ))}
                 </div>
@@ -396,8 +397,8 @@ export default function DashboardPage() {
                                       <div className="text-xs opacity-75">Annullato</div>
                                     ) : assignedUsers.length > 0 && (
                                       <div className="truncate opacity-75 mt-0.5">
-                                       {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
-                                       {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
+                                        {assignedUsers.slice(0, 2).map(n => n.split(' ')[0]).join(', ')}
+                                        {assignedUsers.length > 2 && ` +${assignedUsers.length - 2}`}
                                       </div>
                                     )}
                                   </div>
@@ -420,7 +421,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5 ml-auto"><span className="text-xs text-gray-400 italic">Clicca un turno per aprirlo</span></div>
                 </div>
               </div>
-             )}
+            )}
 
             {/* ── Lista ── */}
             {viewMode === 'lista' && (
