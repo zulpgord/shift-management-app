@@ -22,25 +22,30 @@ const getShifts = async (req, res) => {
 
   try {
     const result = await pool.query(query, params);
-    const shiftsWithCounts = await Promise.all(
+
+    const shiftsWithDetails = await Promise.all(
       result.rows.map(async (shift) => {
-        const countResult = await pool.query(
-          'SELECT COUNT(*) as count FROM assignments WHERE shift_id = $1 AND status = $2',
-          [shift.id, 'assigned']
-        );
-        const usersResult = await pool.query(
-          'SELECT u.name FROM assignments a JOIN users u ON a.user_id = u.id WHERE a.shift_id = $1 AND a.status = $2',
-          [shift.id, 'assigned']
-        );
+        const [countRes, usersRes] = await Promise.all([
+          pool.query(
+            'SELECT COUNT(*) as count FROM assignments WHERE shift_id = $1 AND status = $2',
+            [shift.id, 'assigned']
+          ),
+          pool.query(
+            'SELECT u.name FROM assignments a JOIN users u ON a.user_id = u.id WHERE a.shift_id = $1 AND a.status = $2',
+            [shift.id, 'assigned']
+          ),
+        ]);
         return {
           ...shift,
-          assigned_count: parseInt(countResult.rows[0].count),
-          coverage_status: parseInt(countResult.rows[0].count) >= shift.required_count ? 'covered' : 'uncovered',
-          assigned_users: usersResult.rows.map(u => u.name),
+          assigned_count: parseInt(countRes.rows[0].count),
+          assigned_users: usersRes.rows.map((r) => r.name),
+          coverage_status:
+            parseInt(countRes.rows[0].count) >= shift.required_count ? 'covered' : 'uncovered',
         };
       })
     );
-    res.json(shiftsWithCounts);
+
+    res.json(shiftsWithDetails);
   } catch (err) {
     console.error('Get shifts error:', err);
     res.status(500).json({ error: 'Failed to fetch shifts' });
@@ -49,14 +54,14 @@ const getShifts = async (req, res) => {
 
 // Create shift (admin only)
 const createShift = async (req, res) => {
-  const { location_id, start_time, end_time, required_count, min_participants } = req.body;
+  const { location_id, start_time, end_time, required_count } = req.body;
   if (!location_id || !start_time || !end_time) {
-    return res.status(400).json({ error: 'Missing required fields: location_id, start_time, end_time' });
+    return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
     const result = await pool.query(
-      'INSERT INTO shifts (location_id, start_time, end_time, required_count, min_participants, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [location_id, start_time, end_time, required_count || 1, min_participants || 1, req.user.id]
+      'INSERT INTO shifts (location_id, start_time, end_time, required_count, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [location_id, start_time, end_time, required_count || 1, req.user.id]
     );
     res.status(201).json({ message: 'Shift created', shift: result.rows[0] });
   } catch (err) {
@@ -68,19 +73,32 @@ const createShift = async (req, res) => {
 // Update shift (admin only)
 const updateShift = async (req, res) => {
   const { id } = req.params;
-  const { location_id, start_time, end_time, required_count, min_participants } = req.body;
+  const { location_id, start_time, end_time, required_count } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE shifts SET location_id = COALESCE($1, location_id), start_time = COALESCE($2, start_time), end_time = COALESCE($3, end_time), required_count = COALESCE($4, required_count), min_participants = COALESCE($5, min_participants) WHERE id = $6 RETURNING *',
-      [location_id, start_time, end_time, required_count, min_participants, id]
+      'UPDATE shifts SET location_id=$1, start_time=$2, end_time=$3, required_count=$4, updated_at=NOW() WHERE id=$5 RETURNING *',
+      [location_id, start_time, end_time, required_count, id]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Shift not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Shift not found' });
     res.json({ message: 'Shift updated', shift: result.rows[0] });
   } catch (err) {
     console.error('Update shift error:', err);
     res.status(500).json({ error: 'Failed to update shift' });
+  }
+};
+
+// Cancel / reactivate shift (toggle) — admin only
+const cancelShift = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const current = await pool.query('SELECT cancelled FROM shifts WHERE id = $1', [id]);
+    if (current.rows.length === 0) return res.status(404).json({ error: 'Shift not found' });
+    const newVal = !current.rows[0].cancelled;
+    await pool.query('UPDATE shifts SET cancelled=$1, updated_at=NOW() WHERE id=$2', [newVal, id]);
+    res.json({ message: newVal ? 'Shift cancelled' : 'Shift reactivated', cancelled: newVal });
+  } catch (err) {
+    console.error('Cancel shift error:', err);
+    res.status(500).json({ error: 'Failed to cancel shift' });
   }
 };
 
@@ -89,9 +107,7 @@ const deleteShift = async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query('DELETE FROM shifts WHERE id = $1 RETURNING id', [id]);
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Shift not found' });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Shift not found' });
     res.json({ message: 'Shift deleted' });
   } catch (err) {
     console.error('Delete shift error:', err);
@@ -99,4 +115,4 @@ const deleteShift = async (req, res) => {
   }
 };
 
-module.exports = { getShifts, createShift, updateShift, deleteShift };
+module.exports = { getShifts, createShift, updateShift, cancelShift, deleteShift };
