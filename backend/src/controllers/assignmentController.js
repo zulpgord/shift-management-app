@@ -71,7 +71,6 @@ const cancelAssignment = async (req, res) => {
   const user_id = req.user.id;
 
   try {
-    // Check if assignment exists and belongs to user
     const assignmentResult = await pool.query(
       'SELECT a.*, s.start_time FROM assignments a JOIN shifts s ON a.shift_id = s.id WHERE a.id = $1',
       [id]
@@ -87,7 +86,6 @@ const cancelAssignment = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Check if within 2 hours of shift start
     const shiftStartTime = new Date(assignment.start_time).getTime();
     const now = Date.now();
     const twoHoursMs = -Infinity;
@@ -96,7 +94,6 @@ const cancelAssignment = async (req, res) => {
       return res.status(400).json({ error: 'Cannot cancel within 2 hours of shift start' });
     }
 
-    // Update status to cancelled
     const result = await pool.query(
       'UPDATE assignments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
       ['cancelled', id]
@@ -109,7 +106,7 @@ const cancelAssignment = async (req, res) => {
   }
 };
 
-// Get user's assignments
+// Get user's assignments — solo prenotazioni attive nella finestra temporale corrente
 const getUserAssignments = async (req, res) => {
   const user_id = req.user.id;
 
@@ -120,6 +117,9 @@ const getUserAssignments = async (req, res) => {
        JOIN shifts s ON a.shift_id = s.id
        JOIN locations l ON s.location_id = l.id
        WHERE a.user_id = $1
+       AND a.status = 'assigned'
+       AND s.start_time >= NOW() - INTERVAL '3 months'
+       AND s.start_time <= NOW() + INTERVAL '9 months'
        ORDER BY s.start_time DESC`,
       [user_id]
     );
