@@ -71,6 +71,11 @@ async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_assignments_user ON assignments(user_id);
       CREATE INDEX IF NOT EXISTS idx_assignments_shift ON assignments(shift_id);
       CREATE INDEX IF NOT EXISTS idx_notifications_recipient ON notifications(recipient_id);
+
+      -- Indici per performance query critiche
+      CREATE INDEX IF NOT EXISTS idx_shifts_start_time ON shifts(start_time);
+      CREATE INDEX IF NOT EXISTS idx_assignments_shift_status ON assignments(shift_id, status);
+      CREATE INDEX IF NOT EXISTS idx_assignments_user_status ON assignments(user_id, status);
     `);
 
     // Migration: add cancelled column if missing
