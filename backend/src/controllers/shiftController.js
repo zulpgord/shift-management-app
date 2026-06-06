@@ -1,6 +1,6 @@
 const { pool } = require('../db/database');
 
-// Get all shifts with filters
+// Get all shifts — uses 3 parallel queries instead of N+1
 const getShifts = async (req, res) => {
   const { location_id, start_date, end_date } = req.query;
   let query = 'SELECT s.*, l.name as location_name FROM shifts s JOIN locations l ON s.location_id = l.id WHERE 1=1';
@@ -21,29 +21,42 @@ const getShifts = async (req, res) => {
   query += ' ORDER BY s.start_time ASC';
 
   try {
-    const result = await pool.query(query, params);
+    // 3 parallel queries instead of 1 + (N * 2) sequential queries
+    const [shiftsResult, countsResult, usersResult] = await Promise.all([
+      pool.query(query, params),
+      pool.query(
+        `SELECT shift_id, COUNT(*) as count
+         FROM assignments
+         WHERE status = 'assigned'
+         GROUP BY shift_id`
+      ),
+      pool.query(
+        `SELECT a.shift_id, u.name
+         FROM assignments a
+         JOIN users u ON a.user_id = u.id
+         WHERE a.status = 'assigned'`
+      ),
+    ]);
 
-    const shiftsWithDetails = await Promise.all(
-      result.rows.map(async (shift) => {
-        const [countRes, usersRes] = await Promise.all([
-          pool.query(
-            'SELECT COUNT(*) as count FROM assignments WHERE shift_id = $1 AND status = $2',
-            [shift.id, 'assigned']
-          ),
-          pool.query(
-            'SELECT u.name FROM assignments a JOIN users u ON a.user_id = u.id WHERE a.shift_id = $1 AND a.status = $2',
-            [shift.id, 'assigned']
-          ),
-        ]);
-        return {
-          ...shift,
-          assigned_count: parseInt(countRes.rows[0].count),
-          assigned_users: usersRes.rows.map((r) => r.name),
-          coverage_status:
-            parseInt(countRes.rows[0].count) >= shift.required_count ? 'covered' : 'uncovered',
-        };
-      })
-    );
+    // Build lookup maps (O(n) merge, no extra DB roundtrips)
+    const countMap = {};
+    countsResult.rows.forEach(r => { countMap[r.shift_id] = parseInt(r.count); });
+
+    const usersMap = {};
+    usersResult.rows.forEach(r => {
+      if (!usersMap[r.shift_id]) usersMap[r.shift_id] = [];
+      usersMap[r.shift_id].push(r.name);
+    });
+
+    const shiftsWithDetails = shiftsResult.rows.map(shift => {
+      const assigned_count = countMap[shift.id] || 0;
+      return {
+        ...shift,
+        assigned_count,
+        assigned_users: usersMap[shift.id] || [],
+        coverage_status: assigned_count >= shift.required_count ? 'covered' : 'uncovered',
+      };
+    });
 
     res.json(shiftsWithDetails);
   } catch (err) {
