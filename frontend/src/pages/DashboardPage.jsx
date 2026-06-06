@@ -162,7 +162,7 @@ const DAYS_IT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
   const [shifts, setShifts] = useState([]);
   const [userAssignments, setUserAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -170,6 +170,7 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState('calendario');
   const [selectedShift, setSelectedShift] = useState(null);
   const [toast, setToast] = useState(null);
+  const [bookingShiftId, setBookingShiftId] = useState(null);
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -203,13 +204,25 @@ export default function DashboardPage() {
   };
 
   const handleAssign = async (shiftId) => {
+    // Aggiornamento ottimistico — UI cambia subito senza aspettare il server
+    setShifts(prev => prev.map(s => s.id === shiftId
+      ? { ...s, assigned_count: s.assigned_count + 1, assigned_users: [...(s.assigned_users || []), user.name] }
+      : s
+    ));
+    setUserAssignments(prev => [...prev, {
+      id: -1, // temporaneo
+      shift_id: shiftId,
+      status: 'assigned',
+      start_time: shifts.find(s => s.id === shiftId)?.start_time || '',
+    }]);
     try {
       await assignmentsAPI.assignShift(shiftId);
       showToast('✓ Prenotazione confermata!');
-      loadShifts(true); // refresh in background, no await
+      loadShifts(true); // riconcilia con il server in background
     } catch (err) {
+      loadShifts(true); // rollback via stato server
       showToast('❌ ' + (err.response?.data?.error || 'Errore nella prenotazione'));
-      throw err; // re-throw so the modal stays open on error
+      throw err;
     }
   };
 
@@ -468,12 +481,22 @@ export default function DashboardPage() {
                             </div>
                             {!shift.cancelled && (
                               <button
-                                onClick={() => isMyShift ? handleCancel(myAssignment?.id) : handleAssign(shift.id)}
+                                onClick={async () => {
+                                  if (isMyShift) {
+                                    handleCancel(myAssignment?.id);
+                                  } else {
+                                    setBookingShiftId(shift.id);
+                                    try { await handleAssign(shift.id); } catch(e) {} finally { setBookingShiftId(null); }
+                                  }
+                                }}
+                                disabled={bookingShiftId === shift.id}
                                 className={`ml-4 px-4 py-2 rounded-lg text-sm font-semibold flex-shrink-0 ${
-                                  isMyShift ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                  isMyShift ? 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                  : bookingShiftId === shift.id ? 'bg-indigo-400 text-white cursor-not-allowed opacity-60'
+                                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                 }`}
                               >
-                                {isMyShift ? '✓ Prenotato' : '+ Partecipa'}
+                                {isMyShift ? '✓ Prenotato' : bookingShiftId === shift.id ? '⏳...' : '+ Partecipa'}
                               </button>
                             )}
                           </div>
