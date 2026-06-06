@@ -35,29 +35,33 @@ const assignShift = async (req, res) => {
       );
     }
 
-    // Get shift and user details for email
-    const shiftDetails = await pool.query(
-      'SELECT s.*, l.name as location_name FROM shifts s JOIN locations l ON s.location_id = l.id WHERE s.id = $1',
-      [shift_id]
-    );
+    // Prefetch email data in parallel (fast, before responding)
+    const [shiftDetails, userDetails] = await Promise.all([
+      pool.query(
+        'SELECT s.*, l.name as location_name FROM shifts s JOIN locations l ON s.location_id = l.id WHERE s.id = $1',
+        [shift_id]
+      ),
+      pool.query('SELECT email, name FROM users WHERE id = $1', [user_id]),
+    ]);
 
-    const userDetails = await pool.query('SELECT email, name FROM users WHERE id = $1', [user_id]);
+    // ✅ Respond immediately — don't block on email delivery
+    res.status(201).json({ message: 'Assigned to shift', assignment: result.rows[0] });
 
-    // Send confirmation email
+    // Send confirmation email in background (non-blocking)
     const shift = shiftDetails.rows[0];
     const user = userDetails.rows[0];
-    const startTime = new Date(shift.start_time).toLocaleString();
-
-    await sendEmail(
+    const startTime = new Date(shift.start_time).toLocaleString('it-IT');
+    sendEmail(
       user.email,
-      '✅ Shift Assignment Confirmed',
-      `Hi ${user.name},\n\nYou've been assigned to a shift!\n\nLocation: ${shift.location_name}\nTime: ${startTime}\nDuration: ${shift.hours_volunteered || 'TBD'} hours\n\nThank you for volunteering!`
-    );
+      '✅ Prenotazione confermata',
+      `Ciao ${user.name},\n\nSei stato iscritto al turno!\n\nSede: ${shift.location_name}\nOrario: ${startTime}\n\nGrazie per il tuo contributo!`
+    ).catch(emailErr => console.error('Email send error (non-fatal):', emailErr));
 
-    res.status(201).json({ message: 'Assigned to shift', assignment: result.rows[0] });
   } catch (err) {
     console.error('Assign shift error:', err);
-    res.status(500).json({ error: 'Failed to assign shift' });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to assign shift' });
+    }
   }
 };
 
@@ -86,7 +90,7 @@ const cancelAssignment = async (req, res) => {
     // Check if within 2 hours of shift start
     const shiftStartTime = new Date(assignment.start_time).getTime();
     const now = Date.now();
-  const twoHoursMs = -Infinity;
+    const twoHoursMs = -Infinity;
 
     if (shiftStartTime - now < twoHoursMs && req.user.role !== 'admin') {
       return res.status(400).json({ error: 'Cannot cancel within 2 hours of shift start' });
