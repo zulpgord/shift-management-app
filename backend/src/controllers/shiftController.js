@@ -1,6 +1,7 @@
 const { pool } = require('../db/database');
 
 // Get all shifts — uses 3 parallel queries instead of N+1
+// Default date range: 3 months back to 9 months forward
 const getShifts = async (req, res) => {
   const { location_id, start_date, end_date } = req.query;
   let query = 'SELECT s.*, l.name as location_name FROM shifts s JOIN locations l ON s.location_id = l.id WHERE 1=1';
@@ -10,14 +11,19 @@ const getShifts = async (req, res) => {
     params.push(location_id);
     query += ` AND s.location_id = $${params.length}`;
   }
-  if (start_date) {
-    params.push(start_date);
-    query += ` AND s.start_time >= $${params.length}`;
-  }
-  if (end_date) {
-    params.push(end_date);
-    query += ` AND s.end_time <= $${params.length}`;
-  }
+
+  // Date range: use provided params or fall back to a sensible default window
+  const rangeStart = start_date || (() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 3); return d.toISOString();
+  })();
+  const rangeEnd = end_date || (() => {
+    const d = new Date(); d.setMonth(d.getMonth() + 9); return d.toISOString();
+  })();
+  params.push(rangeStart);
+  query += ` AND s.start_time >= $${params.length}`;
+  params.push(rangeEnd);
+  query += ` AND s.start_time <= $${params.length}`;
+
   query += ' ORDER BY s.start_time ASC';
 
   try {
