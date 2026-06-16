@@ -23,8 +23,8 @@ export const authAPI = {
     api.post('/auth/register', { email, password, name }),
   login: (email, password) =>
     api.post('/auth/login', { email, password }),
-  resetPassword: (email) =>
-    api.post('/auth/reset-password', { email }),
+  resetPassword: (email, newPassword) =>
+    api.post('/auth/reset-password', { email, newPassword }),
 };
 
 // Shifts endpoints
