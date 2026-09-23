@@ -8,6 +8,7 @@ const shiftRoutes = require('./src/routes/shiftRoutes');
 const assignmentRoutes = require('./src/routes/assignmentRoutes');
 const locationRoutes = require('./src/routes/locationRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const noCache = require('./src/middleware/noCache');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,8 +17,8 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
-app.use('/api/shifts', shiftRoutes);
-app.use('/api/assignments', assignmentRoutes);
+app.use('/api/shifts', noCache, shiftRoutes);
+app.use('/api/assignments', noCache, assignmentRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/admin', adminRoutes);
 
