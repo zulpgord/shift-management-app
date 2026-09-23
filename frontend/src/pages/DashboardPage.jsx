@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 import { useNavigate } from 'react-router-dom';
 import { shiftsAPI, assignmentsAPI } from '../services/api';
 
@@ -180,6 +181,13 @@ export default function DashboardPage() {
     if (!user.id) { navigate('/auth'); return; }
     loadShifts();
   }, []);
+
+  // Il fetch iniziale sopra gira una sola volta al mount. Se l'app resta in
+  // background (comune su mobile) e torna in primo piano senza un vero
+  // reload, senza questo hook il calendario resterebbe fermo ai dati
+  // caricati inizialmente anche se un altro utente ha modificato un turno
+  // nel frattempo.
+  useRefetchOnFocus(() => loadShifts(true));
 
   const loadShifts = async (silent = false) => {
     try {
