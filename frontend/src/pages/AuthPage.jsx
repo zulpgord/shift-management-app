@@ -104,7 +104,7 @@ export default function AuthPage() {
           {isLogin && (
             <button type="button" onClick={() => setShowReset(true)}
               style={{ marginTop: '12px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'underline', display: 'block', width: '100%' }}>
-              \uD83D\uDD11 Reimposta password
+              🔑 Reimposta password
             </button>
           )}
         </div>
@@ -112,7 +112,7 @@ export default function AuthPage() {
       {showReset && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ background: 'white', borderRadius: '8px', padding: '24px', width: '320px' }}>
-            <h3 style={{ fontWeight: 'bold', marginBottom: '4px' }}>\uD83D\uDD11 Reimposta password</h3>
+            <h3 style={{ fontWeight: 'bold', marginBottom: '4px' }}>🔑 Reimposta password</h3>
             <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
               <input type="email" placeholder="Email" value={resetForm.email}
                 onChange={e => setResetForm(p => ({ ...p, email: e.target.value }))}
