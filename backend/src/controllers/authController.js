@@ -3,17 +3,19 @@ const jwt = require('jsonwebtoken');
 const { pool } = require('../db/database');
 require('dotenv').config();
 
+const normalizeEmail = (email) => email.trim().toLowerCase();
+
 const register = async (req, res) => {
-  const { email, password, name, role } = req.body;
+  const { email, password, name } = req.body;
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const userRole = role && role === 'admin' ? 'admin' : 'volunteer';
+    // Self-registration is always a volunteer: admins are promoted by an existing admin
     const result = await pool.query(
       'INSERT INTO users (email, password_hash, name, role) VALUES ($1, $2, $3, $4) RETURNING id, email, name, role',
-      [email, hashedPassword, name, userRole]
+      [normalizeEmail(email), hashedPassword, name, 'volunteer']
     );
     const user = result.rows[0];
     const token = jwt.sign(
@@ -37,7 +39,7 @@ const login = async (req, res) => {
     return res.status(400).json({ error: 'Email and password required' });
   }
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = $1', [normalizeEmail(email)]);
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
@@ -59,8 +61,8 @@ const makeAdmin = async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Email required' });
   try {
     const result = await pool.query(
-      'UPDATE users SET role = $1 WHERE email = $2 RETURNING id, email, name, role',
-      ['admin', email]
+      'UPDATE users SET role = $1 WHERE LOWER(email) = $2 RETURNING id, email, name, role',
+      ['admin', normalizeEmail(email)]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
     res.json({ message: 'User promoted to admin', user: result.rows[0] });
@@ -109,12 +111,12 @@ const resetPassword = async (req, res) => {
   if (!email || !newPassword) return res.status(400).json({ error: 'Email e nuova password richieste' });
   if (newPassword.length < 6) return res.status(400).json({ error: 'La password deve essere di almeno 6 caratteri' });
   try {
-    const result = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT id FROM users WHERE LOWER(email) = $1', [normalizeEmail(email)]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Nessun account trovato con questa email' });
     }
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await pool.query('UPDATE users SET password_hash = $1 WHERE email = $2', [hashedPassword, email]);
+    await pool.query('UPDATE users SET password_hash = $1 WHERE LOWER(email) = $2', [hashedPassword, normalizeEmail(email)]);
     res.json({ message: 'Password reimpostata con successo' });
   } catch (err) {
     console.error('Reset password error:', err);

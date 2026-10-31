@@ -19,8 +19,8 @@ async function initializeDatabase() {
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL DEFAULT 'volunteer',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
       -- Locations table
@@ -28,19 +28,19 @@ async function initializeDatabase() {
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         address TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
       -- Shifts table
       CREATE TABLE IF NOT EXISTS shifts (
         id SERIAL PRIMARY KEY,
         location_id INTEGER REFERENCES locations(id) ON DELETE CASCADE,
-        start_time TIMESTAMP NOT NULL,
-        end_time TIMESTAMP NOT NULL,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ NOT NULL,
         required_count INTEGER DEFAULT 1,
         created_by INTEGER REFERENCES users(id),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
       -- Assignments table
@@ -50,8 +50,8 @@ async function initializeDatabase() {
         user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
         hours_volunteered DECIMAL(4,2) DEFAULT NULL,
         status VARCHAR(50) DEFAULT 'assigned',
-        assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        assigned_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(shift_id, user_id)
       );
 
@@ -63,8 +63,8 @@ async function initializeDatabase() {
         subject VARCHAR(255),
         message TEXT,
         email_sent BOOLEAN DEFAULT FALSE,
-        sent_at TIMESTAMP,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS idx_shifts_location ON shifts(location_id);
@@ -81,6 +81,28 @@ async function initializeDatabase() {
     // Migration: add cancelled column if missing
     await client.query(`
       ALTER TABLE shifts ADD COLUMN IF NOT EXISTS cancelled BOOLEAN DEFAULT false;
+    `);
+
+    // Migration: tables created before the switch still have naive timestamps. Their
+    // values were written as UTC wall-clock, so interpret them as UTC while converting.
+    await client.query(`
+      DO $$
+      DECLARE
+        col RECORD;
+      BEGIN
+        FOR col IN
+          SELECT table_name, column_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND table_name IN ('users', 'locations', 'shifts', 'assignments', 'notifications')
+            AND data_type = 'timestamp without time zone'
+        LOOP
+          EXECUTE format(
+            'ALTER TABLE %I ALTER COLUMN %I TYPE TIMESTAMPTZ USING %I AT TIME ZONE ''UTC''',
+            col.table_name, col.column_name, col.column_name
+          );
+        END LOOP;
+      END $$;
     `);
 
     console.log('✅ Database initialized');

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { clearSession } from '../utils/storage';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api`
@@ -16,6 +17,26 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// An expired or invalid token must send the user back to the login page,
+// but a rejected login or password reset is a form error and has to stay on the page.
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/reset-password'];
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const url = error.config?.url || '';
+    const isAuthAttempt = AUTH_ENDPOINTS.some((path) => url.includes(path));
+
+    if (error.response?.status === 401 && !isAuthAttempt) {
+      clearSession();
+      if (window.location.pathname !== '/auth') {
+        window.location.replace('/auth');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Auth endpoints
 export const authAPI = {

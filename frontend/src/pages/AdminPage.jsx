@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { shiftsAPI, locationsAPI, adminAPI } from '../services/api';
+import { getStoredUser } from '../utils/storage';
 
 // ── Helper: get Monday of a given date's week ────────────────────────────────
 function getWeekStart(date) {
@@ -523,7 +524,7 @@ function ShiftsSection({ locations }) {
 
 // ─── Sezione: Utenti ──────────────────────────────────────────────────────────
 function UsersSection() {
-  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const currentUser = getStoredUser();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -885,7 +886,7 @@ function LocationsSection() {
 // ─── AdminPage principale ─────────────────────────────────────────────────────
 export default function AdminPage() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = getStoredUser();
   const [tab, setTab] = useState('turni');
   const [locations, setLocations] = useState([]);
 

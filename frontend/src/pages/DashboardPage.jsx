@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRefetchOnFocus } from '../hooks/useRefetchOnFocus';
 import { useNavigate } from 'react-router-dom';
 import { shiftsAPI, assignmentsAPI } from '../services/api';
+import { getStoredUser } from '../utils/storage';
 
 function LeilaLogo() {
   return (
@@ -54,6 +55,8 @@ function getShiftColors(shift, isMyShift) {
 }
 
 function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
+  // The hook has to run on every render: this component is mounted with shift === null
+  const [isBooking, setIsBooking] = useState(false);
   if (!shift) return null;
   const fmt = (dt) => new Date(dt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   const fmtDate = (dt) => new Date(dt).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -62,7 +65,6 @@ function ShiftModal({ shift, userAssignments, onClose, onAssign, onCancel }) {
   const fullyC = shift.assigned_count >= shift.required_count;
   const partial = shift.assigned_count > 0 && shift.assigned_count < shift.required_count;
   const assignedUsers = shift.assigned_users || [];
-  const [isBooking, setIsBooking] = useState(false);
   const statusLabel = shift.cancelled ? 'Annullato'
     : isAssigned ? '✓ Sei registrato'
     : fullyC ? 'Coperto'
@@ -163,7 +165,7 @@ const DAYS_IT = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [user] = useState(() => JSON.parse(localStorage.getItem('user') || '{}'));
+  const [user] = useState(getStoredUser);
   const [shifts, setShifts] = useState([]);
   const [userAssignments, setUserAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
